@@ -1,0 +1,32 @@
+{
+  "name": "Project Spinup",
+  "features": {
+    "ghcr.io/devcontainers-extra/features/claude-code:1": {},
+    "ghcr.io/jckimble/devcontainer-features/ngrok:3": {
+      "authtoken": "${localEnv:NGROK_AUTH_TOKEN}"
+    }
+  },
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "JakeBecker.elixir-ls",
+        "pantajoe.vscode-elixir-credo",
+        "phoenixframework.phoenix"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "[elixir]": {
+          "editor.defaultFormatter": "JakeBecker.elixir-ls"
+        }
+      }
+    }
+  },
+  "postCreateCommand": "mix deps.get",
+  "forwardPorts": [
+    4000
+  ],
+  "remoteUser": "root"
+}
