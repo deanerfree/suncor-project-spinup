@@ -8,12 +8,11 @@ defmodule ProjectSpinup.Application do
   @impl true
   def start(_type, _args) do
     children = [
+      ProjectSpinup.GenServer,
       ProjectSpinupWeb.Telemetry,
       # ProjectSpinup.Repo,
       {DNSCluster, query: Application.get_env(:project_spinup, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: ProjectSpinup.PubSub},
-      # Start a worker by calling: ProjectSpinup.Worker.start_link(arg)
-      # {ProjectSpinup.Worker, arg},
       # Start to serve requests, typically the last entry
       ProjectSpinupWeb.Endpoint
     ]
