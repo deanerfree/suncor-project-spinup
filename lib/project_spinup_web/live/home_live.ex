@@ -2,7 +2,32 @@ defmodule ProjectSpinupWeb.HomeLive do
   use ProjectSpinupWeb, :live_view
 
   def mount(_params, _session, socket) do
-    {:ok, socket}
+    {:ok, allow_upload(socket, :pdf, accept: ~w(.pdf), max_entries: 1)}
+  end
+
+  def handle_event("validate", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("cancel_upload", %{"ref" => ref}, socket) do
+    {:noreply, cancel_upload(socket, :pdf, ref)}
+  end
+
+  def handle_event("upload_pdf", _params, socket) do
+    results =
+      consume_uploaded_entries(socket, :pdf, fn %{path: path}, entry ->
+        {:ok, ProjectSpinup.GenServer.submit_pdf(%{file_path: path, client_name: entry.client_name})}
+      end)
+
+    socket =
+      case results do
+        [{:ok, {:ok, _}}] -> put_flash(socket, :info, "PDF processed successfully")
+        [{:ok, {:error, reason}}] -> put_flash(socket, :error, "Processing failed: #{inspect(reason)}")
+        [] -> put_flash(socket, :error, "No file selected")
+        _ -> put_flash(socket, :error, "Upload failed")
+      end
+
+    {:noreply, socket}
   end
 
   def render(assigns) do
@@ -37,21 +62,45 @@ defmodule ProjectSpinupWeb.HomeLive do
             </div>
           </div>
         </div>
-        <div
-          id="drop-zone"
-          phx-hook="DragNDropHook"
-          phx-update="ignore"
-          class="space-y-4 space-x-4 border-4 border-dashed border-gray-300 rounded-lg p-12"
-        >
-          <div id="file-list" class="flex flex-col items-start gap-2">
-            <!-- Dynamically populated list of uploaded files will go here -->
+        <form phx-submit="upload_pdf" phx-change="validate">
+          <div
+            id="drop-zone"
+            phx-hook="DragNDropHook"
+            phx-drop-target={@uploads.pdf.ref}
+            class="space-y-4 space-x-4 border-4 border-dashed border-gray-300 rounded-lg p-12"
+          >
+            <div id="file-list" class="flex flex-col items-start gap-2">
+              <%= for entry <- @uploads.pdf.entries do %>
+                <div class="flex items-center gap-2">
+                  <span><%= entry.client_name %></span>
+                  <button
+                    type="button"
+                    phx-click="cancel_upload"
+                    phx-value-ref={entry.ref}
+                    class="text-red-500 hover:text-red-700"
+                  >
+                    &times;
+                  </button>
+                </div>
+              <% end %>
+            </div>
+            <p>Drop in your stick diagram here</p>
+            <.live_file_input upload={@uploads.pdf} class="hidden" />
+            <label
+              for={@uploads.pdf.ref}
+              class="inline-block cursor-pointer px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+            >
+              Browse for PDF
+            </label>
           </div>
-          <p>Drop in your stick diagram here</p>
-          <input type="file" id="file-input" class="hidden" accept=".pdf" />
-          <button class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
-            Upload Files
+          <button
+            type="submit"
+            disabled={Enum.empty?(@uploads.pdf.entries)}
+            class="mt-4 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Upload to Server
           </button>
-        </div>
+        </form>
       </div>
     </div>
     """

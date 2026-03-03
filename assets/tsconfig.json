@@ -25,6 +25,7 @@
     "paths": {
       "*": ["../deps/*"]
     },
+    "lib": ["es2015", "dom"],
     "allowJs": true,
     "noEmit": true
   },

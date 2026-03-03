@@ -67,7 +67,7 @@ defmodule ProjectSpinup.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
-    ]
+      ]
   end
 
   # Aliases are shortcuts or tasks specific to the current project.

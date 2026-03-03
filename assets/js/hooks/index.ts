@@ -15,8 +15,7 @@
 // Note: always include a unique DOM id alongside phx-hook.
 const DragNDropHook = {
   mounted() {
-    this.files = []
-    this.el.addEventListener("dragover", (event) => {
+    this.el.addEventListener("dragover", (event: DragEvent) => {
       event.preventDefault()
       this.el.classList.add("drag-over")
     })
@@ -25,23 +24,8 @@ const DragNDropHook = {
       this.el.classList.remove("drag-over")
     })
 
-    this.el.addEventListener("drop", (event) => {
-      event.preventDefault()
+    this.el.addEventListener("drop", () => {
       this.el.classList.remove("drag-over")
-      this.files = [...event.dataTransfer.files]
-      console.log("Files dropped:", this.files)
-    
-
-    })
-
-    const renderFile = (file) => {
-      const fileItem = document.createElement("div")
-      fileItem.textContent = file.name
-      this.querySelector(".file-list").appendChild(fileItem)
-    }
-
-    this.el.addEventListener("click", () => {
-      this.files.forEach(renderFile)
     })
   }
 }
