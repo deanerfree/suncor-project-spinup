@@ -2,8 +2,11 @@ defmodule ProjectSpinupWeb.HomeLive do
   use ProjectSpinupWeb, :live_view
 
   def mount(_params, _session, socket) do
-    {:ok, allow_upload(socket, :pdf, accept: ~w(.pdf), max_entries: 1)}
+    {:ok, socket
+      |> allow_upload(:pdf, accept: ~w(.pdf), max_entries: 1)
+      |> assign(:result, nil)}
   end
+
 
   def handle_event("validate", _params, socket) do
     {:noreply, socket}
@@ -21,11 +24,15 @@ defmodule ProjectSpinupWeb.HomeLive do
 
     socket =
       case results do
-        [{:ok, {:ok, _}}] -> put_flash(socket, :info, "PDF processed successfully")
-        [{:ok, {:error, reason}}] -> put_flash(socket, :error, "Processing failed: #{inspect(reason)}")
+        [{:ok, pages}] ->
+          socket
+          |> put_flash(:info, "PDF processed successfully")
+          |> assign(:result, pages)
+        [{:error, reason}] -> put_flash(socket, :error, "Processing failed: #{inspect(reason)}")
         [] -> put_flash(socket, :error, "No file selected")
         _ -> put_flash(socket, :error, "Upload failed")
       end
+
 
     {:noreply, socket}
   end
@@ -33,8 +40,8 @@ defmodule ProjectSpinupWeb.HomeLive do
   def render(assigns) do
     ~H"""
     <Layouts.flash_group flash={@flash} />
-    <div class="w-screen h-screen flex items-center justify-center">
-      <div class="flex flex-col gap-8 text-center">
+    <div class="w-screen flex items-center justify-center">
+      <div class="flex flex-col gap-8 text-center container p-8">
         <h1 class="text-4xl font-bold mb-4">Welcome to Suncor Project Spinup!</h1>
         <p class="text-lg text-gray-600 mb-6">
           Your one-stop solution for Suncor core log project management.
@@ -85,10 +92,14 @@ defmodule ProjectSpinupWeb.HomeLive do
               <% end %>
             </div>
             <p>Drop in your stick diagram here</p>
-            <.live_file_input upload={@uploads.pdf} class="hidden" />
+            <.live_file_input upload={@uploads.pdf} class="hidden" disabled={not Enum.empty?(@uploads.pdf.entries)} />
             <label
               for={@uploads.pdf.ref}
-              class="inline-block cursor-pointer px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+              class={[
+                "inline-block px-4 py-2 bg-blue-600 text-white rounded transition",
+                Enum.empty?(@uploads.pdf.entries) && "cursor-pointer hover:bg-blue-700",
+                not Enum.empty?(@uploads.pdf.entries) && "opacity-50 cursor-not-allowed"
+              ]}
             >
               Browse for PDF
             </label>
@@ -101,6 +112,47 @@ defmodule ProjectSpinupWeb.HomeLive do
             Upload to Server
           </button>
         </form>
+        <%= if @result do %>
+          <%= for page <- @result do %>
+            <div class="mt-8 border rounded-lg p-4">
+              <h2 class="text-xl font-bold"><%= page.well_name %></h2>
+              <p>UWI: <%= page.uwi %></p>
+              <p>Well ID: <%= page.well_id %></p>
+              <p>Licence: <%= page.licence %></p>
+
+              <%= for {section_name, section} <- page.sections, section != nil do %>
+                <div class="mt-4">
+                  <h3 class="font-semibold"><%= section_name %></h3>
+                  <%= if Map.has_key?(section, :formations) do %>
+                    <table class="w-full text-sm mt-2">
+                      <thead>
+                        <tr>
+                          <th>Formation</th><th>MASL TVD</th><th>MKB TVD</th>
+                          <th>Pressure (kPa)</th><th>EMW (kg/m³)</th><th>Drilling Problems</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <%= for f <- section.formations do %>
+                          <tr>
+                            <td><%= f.formation %></td>
+                            <td><%= f.masl_tvd %></td>
+                            <td><%= f.mkb_tvd %></td>
+                            <td><%= f.pressure_kpa %></td>
+                            <td><%= f.emw_kg_m3 %></td>
+                            <td><%= f.potential_drilling_problems %></td>
+                          </tr>
+                        <% end %>
+                      </tbody>
+                    </table>
+                  <% else %>
+                    <pre class="text-xs whitespace-pre-wrap"><%= section.raw_text %></pre>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+        <% end %>
+
       </div>
     </div>
     """

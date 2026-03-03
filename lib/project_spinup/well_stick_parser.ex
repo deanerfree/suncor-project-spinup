@@ -120,7 +120,7 @@ defmodule ProjectSpinup.WellStickParser do
          {:ok, json} <- run_extractor(script, pdf_path, requested),
          {:ok, raw} <- Jason.decode(json),
          :ok <- validate_well_stick(raw) do
-      {:ok, Enum.map(raw, &cast_page/1)}
+      Enum.map(raw, &cast_page/1)
     end
   end
 
