@@ -45,6 +45,14 @@ SAME_LINE_TOL   = 4.0   # pt: headers within this vertical distance = same row
 RIGHT_COL_X_LO  = 250   # main right column starts here
 PAGE_X_HI       = 612   # page right edge
 
+# Sections whose headers sit in the right column but whose table content
+# spans the full page width. Explicitly listed to avoid wellbore diagram
+# depth labels (e.g. "SCU 262.2mKB") bleeding into adjacent sections.
+FULL_WIDTH_SECTIONS = {
+    "Drilling Fluids",
+    "Cementing",
+}
+
 # Each entry:  (canonical_name, [first_word, second_word, ...])
 # The section is anchored to the x0 of the first matching word.
 SECTION_REGISTRY = [
@@ -65,7 +73,7 @@ SECTION_REGISTRY = [
 ]
 
 # Sections we can parse into structured data (beyond raw text)
-STRUCTURED_SECTIONS = {"Geological Formation Information"}
+STRUCTURED_SECTIONS = {"Geological Formation Information", "Logging Information"}
 
 # Column header sequences used for the geological formation table
 GEO_COL_SEQUENCES = [
@@ -162,13 +170,14 @@ def detect_section_anchors(words):
     return found
 
 
-def compute_bounds(anchors, page_height):
+def compute_bounds(anchors, page_height, words=None):
     """
     For each anchor, compute (x_lo, x_hi, y_top, y_bot).
 
     Headers on the same y-row (within SAME_LINE_TOL) are treated as
     side-by-side columns; their x boundaries are midpoints between anchors.
-    Headers alone on their row get fixed LEFT or RIGHT column bands.
+    Headers alone on their row get a column-based x default, then are widened
+    to full-page if their content extends into the left column (content-peek).
     """
     # Group anchors that share a y-row
     rows = []
@@ -198,17 +207,26 @@ def compute_bounds(anchors, page_height):
             a = row[0]
             if a.x0 < RIGHT_COL_X_LO:
                 a.x_lo, a.x_hi = 0, RIGHT_COL_X_LO
+            elif a.x0 > 400:
+                # Header is far right (e.g. Thermocouple Design at x~482).
+                # Using the full right-column band (x=250) would pull in adjacent
+                # section content. Anchor tightly to the header instead.
+                a.x_lo, a.x_hi = a.x0 - COLUMN_MARGIN, PAGE_X_HI
             else:
                 a.x_lo, a.x_hi = RIGHT_COL_X_LO, PAGE_X_HI
         else:
             for i, a in enumerate(row):
-                # x_lo: page edge for the first column; otherwise anchor tightly
-                # to the current header's left edge (minus a small margin) to
-                # prevent wrapped text from the previous column bleeding in.
                 if i == 0:
                     a.x_lo = 0
+                elif i == len(row) - 1:
+                    # Last column: use the previous column's x_hi as our x_lo.
+                    a.x_lo = row[i - 1].x_hi
                 else:
-                    a.x_lo = a.x0 - COLUMN_MARGIN
+                    # Middle column: midpoint between the previous header's right
+                    # edge and this header's left edge — symmetric with how x_hi
+                    # is computed. This captures row labels (e.g. "Hole Size (mm)")
+                    # that sit in the inter-column gap left of the header anchor.
+                    a.x_lo = (row[i - 1].x1 + a.x0) / 2
 
                 # x_hi: page edge for the last column; otherwise the midpoint
                 # between this header's RIGHT edge and the next header's LEFT
@@ -220,15 +238,28 @@ def compute_bounds(anchors, page_height):
                 else:
                     a.x_hi = (a.x1 + row[i + 1].x0) / 2
 
-    # Assign y bounds: from header top to next overlapping header's top
+    # Solo far-right sections (e.g. Thermocouple Design, x0>400): set x_lo
+    # to the x_hi of the nearest section that sits to their left.
+    # Must be done BEFORE the y_bot loop so that adjacency checks see the
+    # correct x_lo (e.g. Thermocouple x_lo=444 is adjacent to Casing Design
+    # x_hi=444, so Thermocouple correctly cuts Casing Design's y_bot).
+    for row in rows:
+        if len(row) != 1:
+            continue
+        a = row[0]
+        if a.x0 <= 400:
+            continue
+        left_boundary = max(
+            (b.x_hi for b in anchors if b.x_hi < a.x0),
+            default=RIGHT_COL_X_LO
+        )
+        a.x_lo = left_boundary
+
+    # Assign y bounds: from header top to next overlapping or adjacent header's top
     all_sorted = sorted(anchors, key=lambda x: (x.top, x.x0))
     for a in all_sorted:
         a.y_top = a.top
 
-        # Find the earliest subsequent anchor whose x-range substantially
-        # overlaps ours. MIN_OVERLAP_PT guards against a narrow sliver (e.g.
-        # a left-column section just grazing a centre-column section) from
-        # prematurely cutting off a section's y-bottom.
         MIN_OVERLAP_PT = 30
         y_bot = page_height
         a_width = (PAGE_X_HI if a.x_hi >= 9999 else a.x_hi) - a.x_lo
@@ -241,6 +272,16 @@ def compute_bounds(anchors, page_height):
                 break
         a.y_bot = y_bot
 
+    # Widen explicitly full-width sections to x_lo=0.
+    # These sections have headers in the right column but table content
+    # starting near the left margin (x~50).
+    for row in rows:
+        if len(row) != 1:
+            continue
+        a = row[0]
+        if a.name in FULL_WIDTH_SECTIONS:
+            a.x_lo = 0
+
     return {a.name: a for a in anchors}
 
 
@@ -248,7 +289,9 @@ def compute_bounds(anchors, page_height):
 
 def extract_section_text(page, anchor):
     """Crop page to section bounds and return plain text."""
-    region = page.crop((anchor.x_lo, anchor.y_top, anchor.x_hi, anchor.y_bot))
+    # Subtract a small epsilon from y_bot so pdfplumber's inclusive crop does
+    # not capture the header line of the next section (which sits at exactly y_bot).
+    region = page.crop((anchor.x_lo, anchor.y_top, anchor.x_hi, anchor.y_bot - 0.5))
     return (region.extract_text() or "").strip()
 
 
@@ -334,11 +377,103 @@ def is_formation_row(record):
 
 def parse_geo_formations(page, anchor, all_words):
     boundaries = detect_geo_column_boundaries(all_words)
-    region = page.crop((anchor.x_lo, anchor.y_top, anchor.x_hi, anchor.y_bot))
+    region = page.crop((anchor.x_lo, anchor.y_top, anchor.x_hi, anchor.y_bot - 0.5))
     region_words = region.extract_words()
     rows = group_words_into_rows(region_words)
     records = [row_to_formation(r, boundaries) for r in rows]
     return [r for r in records if is_formation_row(r)]
+
+
+def parse_logging_information(page, anchor):
+    """
+    Parse Logging Information section into three structured columns:
+      tool_types  - left column: tool name + whether it's run (e.g. "Gamma Ray: YES")
+      runs        - middle column: run descriptions (e.g. "Run #1:Gamma Ray/...")
+      notes       - right column: free-text notes (no fixed header)
+
+    Returns dict with tool_types, runs, notes as lists of strings,
+    or None if the header row cannot be located.
+    """
+    region = page.crop((anchor.x_lo, anchor.y_top, anchor.x_hi, anchor.y_bot - 0.5))
+    rwords = region.extract_words()
+    lines  = build_line_index(rwords)
+
+    # ── Find the header row: contains "Tool" and "Run" ───────────────────────
+    header_top  = None
+    header_row  = None
+    header_x_run = None
+    header_x_notes = None
+
+    sorted_lines = sorted(lines.items())
+    for top, lw in sorted_lines:
+        texts = [w["text"] for w in lw]
+        if "Tool" in texts and "Run" in texts:
+            header_top = top
+            header_row = lw
+            run_word   = next(w for w in lw if w["text"] == "Run")
+            header_x_run = run_word["x0"]
+            # Third column: first word after "Well" in the header row, if any
+            well_idx = next((i for i, w in enumerate(lw) if w["text"] == "Well"), None)
+            if well_idx is not None and well_idx + 1 < len(lw):
+                header_x_notes = lw[well_idx + 1]["x0"]
+            break
+
+    if header_top is None:
+        return None
+
+    # If third column header wasn't on the same line, check the adjacent line
+    # (Firebag puts "Note 1:..." on a slightly different y than "Tool Type Run in Well")
+    if header_x_notes is None:
+        for top, lw in sorted_lines:
+            if abs(top - header_top) < 5 and top != header_top:
+                candidates = [w for w in lw if w["x0"] > header_x_run + 10]
+                if candidates:
+                    header_x_notes = min(w["x0"] for w in candidates)
+                    break
+        if header_x_notes is None:
+            # Fallback: notes column starts 60pt after run column
+            header_x_notes = header_x_run + 60
+
+    # ── Column x boundaries ───────────────────────────────────────────────────
+    # col1: [0,         col1_hi]   – tool types
+    # col2: [col1_hi,   col2_hi]   – runs in well
+    # col3: [col2_hi,   ∞      ]   – notes
+    col1_end  = max(w["x1"] for w in header_row if w["x0"] < header_x_run - 5)
+    col1_hi   = (col1_end + header_x_run) / 2
+    # col2_hi: use the right edge of the last "Run in Well" header word + a small
+    # buffer. Using the midpoint to the next header risks including the "Run" in
+    # "Run #1:..." (which sits just below the midpoint) in the wrong column.
+    run_words = [w for w in header_row if header_x_run <= w["x0"] < header_x_notes - 5]
+    col2_end  = max((w["x1"] for w in run_words), default=header_x_notes)
+    col2_hi   = col2_end + 10  # tight boundary just past the last "Run in Well" word
+
+    # ── Parse data rows ───────────────────────────────────────────────────────
+    # Collect words per column per row, then join into strings
+    HEADER_TOL = 2  # pt: skip rows within this distance of the header
+    col1_rows, col2_rows, col3_rows = [], [], []
+
+    for top, lw in sorted_lines:
+        # Skip the section title row and rows at/above header
+        if top < header_top - HEADER_TOL:
+            continue
+        c1 = " ".join(w["text"] for w in lw if w["x0"] <  col1_hi).strip()
+        c2 = " ".join(w["text"] for w in lw if col1_hi <= w["x0"] < col2_hi).strip()
+        c3 = " ".join(w["text"] for w in lw if w["x0"] >= col2_hi).strip()
+        # On the header row itself, col1/col2 contain the column titles — skip them.
+        # But still capture notes (col3) which may start on the same y (e.g. Firebag
+        # puts "Note 1:..." at the same y as "Tool Type Run in Well").
+        on_header = abs(top - header_top) <= HEADER_TOL
+        if on_header:
+            c1, c2 = "", ""
+        if c1: col1_rows.append(c1)
+        if c2: col2_rows.append(c2)
+        if c3: col3_rows.append(c3)
+
+    return {
+        "tool_types": col1_rows,
+        "runs":       col2_rows,
+        "notes":      col3_rows,
+    }
 
 
 # ── Well metadata ─────────────────────────────────────────────────────────────
@@ -397,11 +532,28 @@ def extract_well_metadata(words):
 
 # ── Page extraction ───────────────────────────────────────────────────────────
 
+def detect_footer_top(words, page_height):
+    """
+    Find the top y-coordinate of the page-wide footer line containing
+    'Prepared By:', 'Prognosis Date:', and 'Printed Date:'.
+    Returns that y value as the effective page bottom (so sections don't
+    capture the footer), or page_height if no footer is found.
+    """
+    FOOTER_KEYWORDS = {"Prepared", "Prognosis", "Printed"}
+    # Only look in the bottom 20% of the page
+    threshold = page_height * 0.8
+    for w in words:
+        if w["top"] > threshold and w["text"] in FOOTER_KEYWORDS:
+            return w["top"]
+    return page_height
+
+
 def extract_page(page, requested_sections):
-    all_words = page.extract_words()
-    anchors   = detect_section_anchors(all_words)
-    bounds    = compute_bounds(anchors, page.height)
-    meta      = extract_well_metadata(all_words)
+    all_words   = page.extract_words()
+    footer_top  = detect_footer_top(all_words, page.height)
+    anchors     = detect_section_anchors(all_words)
+    bounds      = compute_bounds(anchors, footer_top, words=all_words)
+    meta        = extract_well_metadata(all_words)
 
     sections = {}
     for name in requested_sections:
@@ -414,6 +566,11 @@ def extract_page(page, requested_sections):
             sections[name] = {
                 "raw_text":   extract_section_text(page, anchor),
                 "formations": parse_geo_formations(page, anchor, all_words),
+            }
+        elif name == "Logging Information":
+            sections[name] = {
+                "raw_text": extract_section_text(page, anchor),
+                "columns":  parse_logging_information(page, anchor),
             }
         else:
             sections[name] = {"raw_text": extract_section_text(page, anchor)}
