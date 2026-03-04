@@ -60,18 +60,15 @@ defmodule ProjectSpinup.GenServer do
     - If the request is not a pdf file, we can return an error response. If the request is valid, we can process the PDF request and return a response.
   """
   def handle_incoming_pdf_request(request) do
-    Logger.info("Received PDF request: #{inspect(request)}")
-    # Check if the request is a valid PDF filerec
-    if Utils.valid_pdf_request?(request) do
-      # Process the PDF request and return a response
-      WellStickParser.parse(request.file_path)
-      # IO.inspect(stick_data, label: "Parsed stick data")
+  Logger.info("Received PDF request: #{inspect(request)}")
 
-    else
-      # Return an error response for invalid PDF request
-      Logger.error("Invalid PDF request: ")
-      Logger.error(inspect(request))
-      {:error, :invalid_pdf_request}
-    end
+  if Utils.valid_pdf_request?(request) do
+    stick_data = WellStickParser.parse(request.file_path)
+    IO.inspect(stick_data, label: "Parsed stick data")
+    stick_data
+  else
+    Logger.error("Invalid PDF request: #{inspect(request)}")
+    {:error, :invalid_pdf_request}
   end
+end
 end

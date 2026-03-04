@@ -54,7 +54,7 @@ defmodule ProjectSpinup.WellStickParser do
       "Drill Cutting / Coring Information" # raw_text
       "Casing Design"                      # raw_text
       "Piezometer Design"                  # raw_text
-      "Logging Information"                # raw_text
+      "Logging Information"                # raw_text + columns (tool_types, runs, notes)
       "Thermocouple Design"                # raw_text
 
   ## Configuration
@@ -79,6 +79,7 @@ defmodule ProjectSpinup.WellStickParser do
 
   @type section :: %{
           raw_text: String.t(),
+          columns: %{tool_types: [String.t()], runs: [String.t()], notes: [String.t()]} | nil,
           formations: [formation()] | nil
         }
 
@@ -120,7 +121,7 @@ defmodule ProjectSpinup.WellStickParser do
          {:ok, json} <- run_extractor(script, pdf_path, requested),
          {:ok, raw} <- Jason.decode(json),
          :ok <- validate_well_stick(raw) do
-      Enum.map(raw, &cast_page/1)
+      {:ok, Enum.map(raw, &cast_page/1)}
     end
   end
 
@@ -186,10 +187,24 @@ defmodule ProjectSpinup.WellStickParser do
   defp cast_section(raw) do
     base = %{raw_text: raw["raw_text"]}
 
-    case raw["formations"] do
-      nil -> base
-      formations -> Map.put(base, :formations, Enum.map(formations, &cast_formation/1))
+    base =
+      case raw["formations"] do
+        nil        -> base
+        formations -> Map.put(base, :formations, Enum.map(formations, &cast_formation/1))
+      end
+
+    case raw["columns"] do
+      nil     -> base
+      columns -> Map.put(base, :columns, cast_logging_columns(columns))
     end
+  end
+
+  defp cast_logging_columns(raw) do
+    %{
+      tool_types: raw["tool_types"] || [],
+      runs:       raw["runs"]       || [],
+      notes:      raw["notes"]      || []
+    }
   end
 
   defp cast_formation(raw) do
