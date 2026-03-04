@@ -7,7 +7,6 @@ defmodule ProjectSpinupWeb.HomeLive do
       |> assign(:result, nil)}
   end
 
-
   def handle_event("validate", _params, socket) do
     {:noreply, socket}
   end
@@ -17,6 +16,9 @@ defmodule ProjectSpinupWeb.HomeLive do
   end
 
   def handle_event("upload_pdf", _params, socket) do
+    # consume_uploaded_entries requires the callback to return {:ok, value} or {:error, reason}.
+    # submit_pdf already returns {:ok, pages} | {:error, reason}, so pass it through directly
+    # rather than wrapping it again in {:ok, ...} which would produce {:ok, {:ok, pages}}.
     results =
       consume_uploaded_entries(socket, :pdf, fn %{path: path}, entry ->
         {:ok, ProjectSpinup.GenServer.submit_pdf(%{file_path: path, client_name: entry.client_name})}
@@ -32,7 +34,6 @@ defmodule ProjectSpinupWeb.HomeLive do
         [] -> put_flash(socket, :error, "No file selected")
         _ -> put_flash(socket, :error, "Upload failed")
       end
-
 
     {:noreply, socket}
   end
@@ -51,24 +52,19 @@ defmodule ProjectSpinupWeb.HomeLive do
           <div class="flex flex-col items-start gap-2">
             <div class="flex items-center gap-2">
               <input type="checkbox" id="am-report" class="mr-2" />
-              <label for="am-report">
-                AM Report
-              </label>
+              <label for="am-report">AM Report</label>
             </div>
             <div class="flex items-center gap-2">
               <input type="checkbox" id="eor-report" class="mr-2" />
-              <label for="eor-report">
-                EOR Report
-              </label>
+              <label for="eor-report">EOR Report</label>
             </div>
             <div class="flex items-center gap-2">
               <input type="checkbox" id="surface-descriptions" class="mr-2" />
-              <label for="surface-descriptions">
-                Surface Descriptions
-              </label>
+              <label for="surface-descriptions">Surface Descriptions</label>
             </div>
           </div>
         </div>
+
         <form phx-submit="upload_pdf" phx-change="validate">
           <div
             id="drop-zone"
@@ -112,6 +108,7 @@ defmodule ProjectSpinupWeb.HomeLive do
             Upload to Server
           </button>
         </form>
+
         <%= if @result do %>
           <%= for page <- @result do %>
             <div class="mt-8 border rounded-lg p-4">
@@ -121,38 +118,71 @@ defmodule ProjectSpinupWeb.HomeLive do
               <p>Licence: <%= page.licence %></p>
 
               <%= for {section_name, section} <- page.sections, section != nil do %>
-                <div class="mt-4">
+                <div class="mt-4 text-left">
                   <h3 class="font-semibold"><%= section_name %></h3>
-                  <%= if Map.has_key?(section, :formations) do %>
-                    <table class="w-full text-sm mt-2">
-                      <thead>
-                        <tr>
-                          <th>Formation</th><th>MASL TVD</th><th>MKB TVD</th>
-                          <th>Pressure (kPa)</th><th>EMW (kg/m³)</th><th>Drilling Problems</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <%= for f <- section.formations do %>
-                          <tr>
-                            <td><%= f.formation %></td>
-                            <td><%= f.masl_tvd %></td>
-                            <td><%= f.mkb_tvd %></td>
-                            <td><%= f.pressure_kpa %></td>
-                            <td><%= f.emw_kg_m3 %></td>
-                            <td><%= f.potential_drilling_problems %></td>
+
+                  <%= cond do %>
+                    <% Map.has_key?(section, :formations) -> %>
+                      <table class="w-full text-sm mt-2 border-collapse">
+                        <thead>
+                          <tr class="bg-gray-100">
+                            <th class="border px-2 py-1">Formation</th>
+                            <th class="border px-2 py-1">MASL TVD</th>
+                            <th class="border px-2 py-1">MKB TVD</th>
+                            <th class="border px-2 py-1">Pressure (kPa)</th>
+                            <th class="border px-2 py-1">EMW (kg/m³)</th>
+                            <th class="border px-2 py-1">Drilling Problems</th>
                           </tr>
-                        <% end %>
-                      </tbody>
-                    </table>
-                  <% else %>
-                    <pre class="text-xs whitespace-pre-wrap"><%= section.raw_text %></pre>
+                        </thead>
+                        <tbody>
+                          <%= for f <- section.formations do %>
+                            <tr>
+                              <td class="border px-2 py-1"><%= f.formation %></td>
+                              <td class="border px-2 py-1"><%= f.masl_tvd %></td>
+                              <td class="border px-2 py-1"><%= f.mkb_tvd %></td>
+                              <td class="border px-2 py-1"><%= f.pressure_kpa %></td>
+                              <td class="border px-2 py-1"><%= f.emw_kg_m3 %></td>
+                              <td class="border px-2 py-1"><%= f.potential_drilling_problems %></td>
+                            </tr>
+                          <% end %>
+                        </tbody>
+                      </table>
+
+                    <% Map.has_key?(section, :columns) -> %>
+                      <%
+                        cols = section.columns
+                        # Zip the three columns together, padding shorter lists with ""
+                        max_len = [cols.tool_types, cols.runs, cols.notes] |> Enum.map(&length/1) |> Enum.max()
+                        pad = fn list -> list ++ List.duplicate("", max_len - length(list)) end
+                        rows = Enum.zip([pad.(cols.tool_types), pad.(cols.runs), pad.(cols.notes)])
+                      %>
+                      <table class="w-full text-sm mt-2 border-collapse">
+                        <thead>
+                          <tr class="bg-gray-100">
+                            <th class="border px-2 py-1 text-left">Tool Type</th>
+                            <th class="border px-2 py-1 text-left">Run in Well</th>
+                            <th class="border px-2 py-1 text-left">Notes</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <%= for {tool, run, note} <- rows do %>
+                            <tr>
+                              <td class="border px-2 py-1"><%= tool %></td>
+                              <td class="border px-2 py-1"><%= run %></td>
+                              <td class="border px-2 py-1"><%= note %></td>
+                            </tr>
+                          <% end %>
+                        </tbody>
+                      </table>
+
+                    <% true -> %>
+                      <pre class="text-xs whitespace-pre-wrap text-left"><%= section.raw_text %></pre>
                   <% end %>
                 </div>
               <% end %>
             </div>
           <% end %>
         <% end %>
-
       </div>
     </div>
     """
