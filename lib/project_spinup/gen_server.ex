@@ -20,6 +20,11 @@ defmodule ProjectSpinup.GenServer do
     GenServer.call(__MODULE__, {:pdf_request, request})
   end
 
+  @spec populate_template(map()) :: {:ok, map()} | {:error, atom() | String.t()}
+  def populate_template(request) do
+    GenServer.call(__MODULE__, {:populate_template, request})
+  end
+
   # Server Callbacks
 
   @impl true
@@ -31,6 +36,12 @@ defmodule ProjectSpinup.GenServer do
   @impl true
   def handle_call({:pdf_request, request}, _from, state) do
     result = handle_incoming_pdf_request(request)
+    {:reply, result, state}
+  end
+
+  @impl true
+  def handle_call({:populate_template, request}, _from, state) do
+    result = ProjectSpinup.TemplatePopulator.populate(request)
     {:reply, result, state}
   end
 

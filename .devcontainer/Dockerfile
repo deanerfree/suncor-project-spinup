@@ -17,6 +17,6 @@ RUN apt-get update && apt-get install -y \
   > /etc/apt/sources.list.d/github-cli.list \
   && apt-get update && apt-get install -y gh
 
-RUN pip3 install pdfplumber --break-system-packages
+RUN pip3 install openpyxl pdfplumber --break-system-packages
 
 WORKDIR /workspace
