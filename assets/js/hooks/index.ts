@@ -30,6 +30,22 @@ const DragNDropHook = {
   }
 }
 
-const hooks: Record<string, object> = { DragNDropHook }
+const LocalStorageHook = {
+  mounted() {
+    const saved = localStorage.getItem("well_stick")
+    console.log("LocalStorageHook mounted, found saved value:", saved)
+
+    if (saved) {
+      this.pushEvent("load_result", { data: JSON.parse(saved) })
+    }
+
+    this.handleEvent("store_result", ({ key, data, path }) => {
+      localStorage.setItem(key, JSON.stringify(data))
+      window.location = path
+    })
+  }
+}
+
+const hooks: Record<string, object> = { DragNDropHook, LocalStorageHook }
 
 export default hooks
