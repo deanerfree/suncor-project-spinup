@@ -123,12 +123,12 @@ defmodule ProjectSpinupWeb.HomeLive do
             <% end %>
           </div>
           <button
-             type="submit"
-             disabled={Enum.empty?(@uploads.pdf.entries)}
-             class="mt-4 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-           >
-             Upload to Server
-           </button>
+            type="submit"
+            disabled={Enum.empty?(@uploads.pdf.entries)}
+            class="mt-4 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Upload to Server
+          </button>
         </form>
 
 
