@@ -22,6 +22,25 @@ defmodule ProjectSpinupWeb.ResultsLive do
   defp atomize_keys(list) when is_list(list), do: Enum.map(list, &atomize_keys/1)
   defp atomize_keys(value), do: value
 
+  defp section_type(section) do
+    cond do
+      Map.has_key?(section, :casing) ->
+        :casing
+
+      Map.has_key?(section, :rows) and match?([%{formation: _} | _], section.rows) ->
+        :geo_formations
+
+      Map.has_key?(section, :rows) and match?([%{hole_section: _} | _], section.rows) ->
+        :drilling_fluids
+
+      Map.has_key?(section, :columns) ->
+        :logging
+
+      true ->
+        :raw
+    end
+  end
+
   def render(assigns) do
     ~H"""
     <div id="well-storage" phx-hook="LocalStorageHook"></div>
@@ -45,11 +64,37 @@ defmodule ProjectSpinupWeb.ResultsLive do
               <div class="mt-4 text-left">
                 <h3 class="font-semibold">{section_name}</h3>
 
-                <%= cond do %>
-                  <% Map.has_key?(section, :formations) -> %>
+                <%= case section_type(section) do %>
+                  <% :casing -> %>
+                    <% has_int = "intermediate" in section.casing.columns %>
                     <table class="w-full text-sm mt-2 border-collapse">
                       <thead>
-                        <tr class="bg-gray-100">
+                        <tr class="bg-gray-100 text-[#71a3c1]">
+                          <th class="border px-2 py-1 text-left">Field</th>
+                          <th class="border px-2 py-1">Surface</th>
+                          <%= if has_int do %>
+                            <th class="border px-2 py-1">Intermediate</th>
+                          <% end %>
+                          <th class="border px-2 py-1">Main</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <%= for r <- section.casing.rows do %>
+                          <tr>
+                            <td class="border px-2 py-1 font-medium">{r.field}</td>
+                            <td class="border px-2 py-1 text-center">{r.surface}</td>
+                            <%= if has_int do %>
+                              <td class="border px-2 py-1 text-center">{r.intermediate}</td>
+                            <% end %>
+                            <td class="border px-2 py-1 text-center">{r.main}</td>
+                          </tr>
+                        <% end %>
+                      </tbody>
+                    </table>
+                  <% :geo_formations -> %>
+                    <table class="w-full text-sm mt-2 border-collapse">
+                      <thead>
+                        <tr class="bg-gray-100 text-[#282f36]">
                           <th class="border px-2 py-1">Formation</th>
                           <th class="border px-2 py-1">MASL TVD</th>
                           <th class="border px-2 py-1">MKB TVD</th>
@@ -59,7 +104,7 @@ defmodule ProjectSpinupWeb.ResultsLive do
                         </tr>
                       </thead>
                       <tbody>
-                        <%= for f <- section.formations do %>
+                        <%= for f <- section.rows do %>
                           <tr>
                             <td class="border px-2 py-1">{f.formation}</td>
                             <td class="border px-2 py-1">{f.masl_tvd}</td>
@@ -71,33 +116,62 @@ defmodule ProjectSpinupWeb.ResultsLive do
                         <% end %>
                       </tbody>
                     </table>
-                  <% Map.has_key?(section, :columns) -> %>
-                    <% cols = section.columns
-                    # Zip the three columns together, padding shorter lists with ""
-                    max_len =
-                      [cols.tool_types, cols.runs, cols.notes] |> Enum.map(&length/1) |> Enum.max()
-
-                    pad = fn list -> list ++ List.duplicate("", max_len - length(list)) end
-                    rows = Enum.zip([pad.(cols.tool_types), pad.(cols.runs), pad.(cols.notes)]) %>
+                  <% :drilling_fluids -> %>
                     <table class="w-full text-sm mt-2 border-collapse">
                       <thead>
-                        <tr class="bg-gray-100">
-                          <th class="border px-2 py-1 text-left">Tool Type</th>
-                          <th class="border px-2 py-1 text-left">Run in Well</th>
-                          <th class="border px-2 py-1 text-left">Notes</th>
+                        <tr class="bg-gray-100 text-[#282f36]">
+                          <th class="border px-2 py-1">Hole Section</th>
+                          <th class="border px-2 py-1">Hole Size (mm)</th>
+                          <th class="border px-2 py-1">Interval (mKB)</th>
+                          <th class="border px-2 py-1">System Type</th>
+                          <th class="border px-2 py-1">Density (kg/m³)</th>
+                          <th class="border px-2 py-1">Viscosity (s/L)</th>
+                          <th class="border px-2 py-1">Fluid Loss (mL/30min)</th>
+                          <th class="border px-2 py-1">pH</th>
+                          <th class="border px-2 py-1">Comments</th>
                         </tr>
                       </thead>
                       <tbody>
-                        <%= for {tool, run, note} <- rows do %>
+                        <%= for r <- section.rows do %>
                           <tr>
-                            <td class="border px-2 py-1">{tool}</td>
-                            <td class="border px-2 py-1">{run}</td>
-                            <td class="border px-2 py-1">{note}</td>
+                            <td class="border px-2 py-1">{r.hole_section}</td>
+                            <td class="border px-2 py-1">{r.hole_size_mm}</td>
+                            <td class="border px-2 py-1">{r.interval_mkb}</td>
+                            <td class="border px-2 py-1">{r.system_type}</td>
+                            <td class="border px-2 py-1">{r.density_kg_m3}</td>
+                            <td class="border px-2 py-1">{r.viscosity_s_l}</td>
+                            <td class="border px-2 py-1">{r.fluid_loss_ml}</td>
+                            <td class="border px-2 py-1">{r.ph}</td>
+                            <td class="border px-2 py-1">{r.comments}</td>
                           </tr>
                         <% end %>
                       </tbody>
                     </table>
-                  <% true -> %>
+                  <% :logging -> %>
+                    <% cols = section.columns
+                    max_len = [cols.tool_types, cols.runs] |> Enum.map(&length/1) |> Enum.max()
+                    pad = fn list -> list ++ List.duplicate("", max_len - length(list)) end
+                    rows = Enum.zip([pad.(cols.tool_types), pad.(cols.runs)]) %>
+                    <table class="w-full text-sm mt-2 border-collapse">
+                      <thead>
+                        <tr class="bg-gray-100 text-[#282f36]">
+                          <th class="border px-2 py-1 text-left">Tool Type</th>
+                          <th class="border px-2 py-1 text-left">Run in Well</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <%= for {tool, run} <- rows do %>
+                          <tr>
+                            <td class="border px-2 py-1">{tool}</td>
+                            <td class="border px-2 py-1">{run}</td>
+                          </tr>
+                        <% end %>
+                      </tbody>
+                    </table>
+                    <%= if cols.notes != "" do %>
+                      <pre class="text-xs whitespace-pre-wrap text-left mt-2 text-gray-600 border-l-2 border-gray-300 pl-2"><%= cols.notes %></pre>
+                    <% end %>
+                  <% :raw -> %>
                     <pre class="text-xs whitespace-pre-wrap text-left"><%= section.raw_text %></pre>
                 <% end %>
               </div>

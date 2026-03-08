@@ -73,7 +73,7 @@ SECTION_REGISTRY = [
 ]
 
 # Sections we can parse into structured data (beyond raw text)
-STRUCTURED_SECTIONS = {"Geological Formation Information", "Logging Information"}
+STRUCTURED_SECTIONS = {"Geological Formation Information", "Logging Information", "Drilling Fluids", "Casing Design"}
 
 # Column header sequences used for the geological formation table
 GEO_COL_SEQUENCES = [
@@ -384,14 +384,259 @@ def parse_geo_formations(page, anchor, all_words):
     return [r for r in records if is_formation_row(r)]
 
 
+def parse_casing_design(page, anchor):
+    """
+    Parse Casing Design section into structured rows.
+
+    The section has a row-label column on the left and 2–3 data columns:
+      Surface, (Intermediate — if present), Main
+
+    Returns a dict:
+      {
+        "columns": ["Surface", "Intermediate", "Main"],   # or ["Surface", "Main"]
+        "rows": [
+          {"field": "Hole Size (mm)", "surface": "311", "intermediate": "222", "main": "159"},
+          ...
+        ]
+      }
+    """
+    region = page.crop((anchor.x_lo, anchor.y_top, anchor.x_hi, anchor.y_bot - 0.5))
+    rwords = region.extract_words()
+    lines  = build_line_index(rwords)
+    sorted_lines = sorted(lines.items())
+
+    # ── Find the column header row (contains "Surface" and "Main") ────────────
+    header_top = None
+    col_centres = {}
+
+    for top, lw in sorted_lines:
+        texts = [w["text"] for w in lw]
+        if "Surface" in texts and "Main" in texts:
+            header_top = top
+            for w in lw:
+                t = w["text"]
+                cx = (w["x0"] + w["x1"]) / 2
+                if t == "Surface":                    col_centres["surface"] = cx
+                if t in ("Int.", "Intermediate"):     col_centres["intermediate"] = cx
+                if t == "Main":                       col_centres["main"] = cx
+            break
+
+    if header_top is None or len(col_centres) < 2:
+        return None
+
+    # ── Determine row-label x boundary from the first data row ───────────────
+    # Find the largest gap between consecutive word x0 positions in the first
+    # data row — everything left of that gap is the row label, right is data.
+    row_label_hi = None
+    for top, lw in sorted_lines:
+        if top <= header_top + 1:
+            continue
+        if len(lw) >= 2:
+            xs = sorted(w["x0"] for w in lw)
+            gaps = [(xs[i+1] - xs[i], xs[i], xs[i+1]) for i in range(len(xs)-1)]
+            if gaps:
+                max_gap, gap_lo, gap_hi = max(gaps)
+                row_label_hi = (gap_lo + gap_hi) / 2
+            break
+
+    if row_label_hi is None:
+        row_label_hi = min(col_centres.values()) - 10
+
+    # ── Also fix the crop x_lo to skip logging bleedover ─────────────────────
+    # Bleedover words from Logging Information appear at x < row_label_hi
+    # but with x0 close to anchor.x_lo (i.e. they're left-edge fragments).
+    # We already handle this by only reading words with x0 >= the leftmost
+    # row label x — which we infer from the first data row above.
+    # Re-crop the region with the corrected x_lo to drop bleedover words.
+    first_label_x = None
+    for top, lw in sorted_lines:
+        if top <= header_top + 1:
+            continue
+        if lw:
+            first_label_x = min(w["x0"] for w in lw)
+            break
+
+    if first_label_x and first_label_x > anchor.x_lo + 5:
+        region = page.crop((first_label_x - 2, anchor.y_top, anchor.x_hi, anchor.y_bot - 0.5))
+        rwords = region.extract_words()
+        lines  = build_line_index(rwords)
+        sorted_lines = sorted(lines.items())
+
+    # ── Ordered column list for nearest-centre assignment ─────────────────────
+    COLS_ORDER = ["surface", "intermediate", "main"]
+    col_list = [(c, col_centres[c]) for c in COLS_ORDER if c in col_centres]
+
+    def nearest_col(x0):
+        return min(col_list, key=lambda p: abs(p[1] - x0))[0]
+
+    def bucket_text(buckets, col):
+        return " ".join(buckets.get(col, [])).strip()
+
+    # ── Parse data rows ───────────────────────────────────────────────────────
+    rows = []
+    for top, lw in sorted_lines:
+        if top <= header_top + 1:
+            continue
+        label_words = [w for w in lw if w["x0"] < row_label_hi]
+        data_words  = [w for w in lw if w["x0"] >= row_label_hi]
+
+        field = " ".join(w["text"] for w in sorted(label_words, key=lambda w: w["x0"])).strip()
+        if not field:
+            continue
+
+        buckets = {c: [] for c, _ in col_list}
+        for w in data_words:
+            buckets[nearest_col(w["x0"])].append(w["text"])
+
+        row = {"field": field}
+        for col, _ in col_list:
+            row[col] = bucket_text(buckets, col)
+        rows.append(row)
+
+    return {
+        "columns": [c for c, _ in col_list],
+        "rows": rows,
+    }
+
+
+def parse_drilling_fluids(page, anchor):
+    """
+    Parse Drilling Fluids section into structured rows, one per hole section.
+
+    Each row dict has keys:
+      hole_section, hole_size_mm, interval_mkb, system_type,
+      density_kg_m3, viscosity_s_l, fluid_loss_ml, ph, comments
+
+    Uses nearest-centre column assignment so sub-pixel misalignments between
+    header and data words never cause words to fall into the wrong bucket.
+    """
+    region = page.crop((anchor.x_lo, anchor.y_top, anchor.x_hi, anchor.y_bot - 0.5))
+    rwords = region.extract_words()
+    lines  = build_line_index(rwords)
+    sorted_lines = sorted(lines.items())
+
+    # ── Find the header row that contains "(mm)" and "(mKB)" ─────────────────
+    # The header may span 2-3 PDF lines; collect header words from all lines
+    # within 10pt of the "(mm)/(mKB)" line to build column centre x-positions.
+    header2_top = None
+    for top, lw in sorted_lines:
+        texts = [w["text"] for w in lw]
+        if "(mm)" in texts and "(mKB)" in texts:
+            header2_top = top
+            break
+
+    if header2_top is None:
+        return None
+
+    # Map of column name → representative x centre (from header words)
+    HEADER_TOKENS = {
+        "(mm)":       "hole_size_mm",
+        "(mKB)":      "interval_mkb",
+        "Type":       "system_type",
+        "(kg/m3)":    "density",
+        "(s/L)":      "viscosity",
+        "(mL/30min)": "fluid_loss",
+        "pH":         "ph",
+        "Comments":   "comments",
+    }
+    col_centres = {}
+    for top, lw in sorted_lines:
+        if abs(top - header2_top) > 10:
+            continue
+        for w in lw:
+            if w["text"] in HEADER_TOKENS:
+                col_name = HEADER_TOKENS[w["text"]]
+                # Use centre of the header word as the column centre
+                col_centres[col_name] = (w["x0"] + w["x1"]) / 2
+
+    # hole_section has no neat header token — anchor it at x=0 conceptually;
+    # its "centre" for nearest-match is halfway between 0 and hole_size_mm x_lo.
+    if "hole_size_mm" in col_centres:
+        col_centres["hole_section"] = col_centres["hole_size_mm"] / 2
+    else:
+        col_centres["hole_section"] = 0
+
+    if len(col_centres) < 5:
+        return None
+
+    # Ordered list of (col_name, centre_x) for nearest-centre lookup
+    COLS_ORDER = ["hole_section", "hole_size_mm", "interval_mkb", "system_type",
+                  "density", "viscosity", "fluid_loss", "ph", "comments"]
+    col_list = [(c, col_centres[c]) for c in COLS_ORDER if c in col_centres]
+
+    def nearest_col(x0):
+        return min(col_list, key=lambda p: abs(p[1] - x0))[0]
+
+    # ── Note/footer row detection ─────────────────────────────────────────────
+    # Full-width note lines (e.g. "Do NOT use LCM...") start at the far left
+    # (x < hole_size_mm centre) and contain no numeric hole-size token.
+    # We stop collecting data rows once we hit the first such line after
+    # at least one valid data row has been found.
+    NOTE_STARTERS = {"do", "refer", "note", "volumes", "see", "alap"}
+
+    def is_note_line(lw):
+        if not lw:
+            return False
+        first_text = lw[0]["text"].lower().rstrip(".")
+        return first_text in NOTE_STARTERS
+
+    # ── Parse data rows ───────────────────────────────────────────────────────
+    records = []
+    current = None
+    found_data = False
+
+    for top, lw in sorted_lines:
+        if top <= header2_top + 1:
+            continue  # skip title + header rows
+
+        # Stop at note lines once we have at least one valid row
+        if found_data and is_note_line(lw):
+            break
+
+        # Assign every word on this line to its nearest column
+        buckets = {c: [] for c in col_centres}
+        for w in lw:
+            buckets[nearest_col(w["x0"])].append(w["text"])
+
+        def bucket_text(col):
+            return " ".join(buckets.get(col, [])).strip()
+
+        hole_sec  = bucket_text("hole_section")
+        hole_size = bucket_text("hole_size_mm")
+
+        if hole_sec and hole_size:
+            # New data row
+            found_data = True
+            current = {
+                "hole_section":  hole_sec,
+                "hole_size_mm":  hole_size,
+                "interval_mkb":  bucket_text("interval_mkb"),
+                "system_type":   bucket_text("system_type"),
+                "density_kg_m3": bucket_text("density"),
+                "viscosity_s_l": bucket_text("viscosity"),
+                "fluid_loss_ml": bucket_text("fluid_loss"),
+                "ph":            bucket_text("ph"),
+                "comments":      bucket_text("comments"),
+            }
+            records.append(current)
+        elif current is not None:
+            # Continuation line — append any comment overflow
+            extra = bucket_text("comments")
+            if extra:
+                current["comments"] = (current["comments"] + " " + extra).strip()
+
+    return records
+
+
 def parse_logging_information(page, anchor):
     """
-    Parse Logging Information section into three structured columns:
+    Parse Logging Information section into two structured columns:
       tool_types  - left column: tool name + whether it's run (e.g. "Gamma Ray: YES")
       runs        - middle column: run descriptions (e.g. "Run #1:Gamma Ray/...")
-      notes       - right column: free-text notes (no fixed header)
 
-    Returns dict with tool_types, runs, notes as lists of strings,
+    The right-hand notes column is left in raw_text only.
+
+    Returns dict with tool_types and runs as lists of strings,
     or None if the header row cannot be located.
     """
     region = page.crop((anchor.x_lo, anchor.y_top, anchor.x_hi, anchor.y_bot - 0.5))
@@ -399,80 +644,56 @@ def parse_logging_information(page, anchor):
     lines  = build_line_index(rwords)
 
     # ── Find the header row: contains "Tool" and "Run" ───────────────────────
-    header_top  = None
-    header_row  = None
+    header_top   = None
+    header_row   = None
     header_x_run = None
-    header_x_notes = None
 
     sorted_lines = sorted(lines.items())
     for top, lw in sorted_lines:
         texts = [w["text"] for w in lw]
         if "Tool" in texts and "Run" in texts:
-            header_top = top
-            header_row = lw
-            run_word   = next(w for w in lw if w["text"] == "Run")
+            header_top   = top
+            header_row   = lw
+            run_word     = next(w for w in lw if w["text"] == "Run")
             header_x_run = run_word["x0"]
-            # Third column: first word after "Well" in the header row, if any
-            well_idx = next((i for i, w in enumerate(lw) if w["text"] == "Well"), None)
-            if well_idx is not None and well_idx + 1 < len(lw):
-                header_x_notes = lw[well_idx + 1]["x0"]
             break
 
     if header_top is None:
         return None
 
-    # If third column header wasn't on the same line, check the adjacent line
-    # (Firebag puts "Note 1:..." on a slightly different y than "Tool Type Run in Well")
-    if header_x_notes is None:
-        for top, lw in sorted_lines:
-            if abs(top - header_top) < 5 and top != header_top:
-                candidates = [w for w in lw if w["x0"] > header_x_run + 10]
-                if candidates:
-                    header_x_notes = min(w["x0"] for w in candidates)
-                    break
-        if header_x_notes is None:
-            # Fallback: notes column starts 60pt after run column
-            header_x_notes = header_x_run + 60
-
     # ── Column x boundaries ───────────────────────────────────────────────────
-    # col1: [0,         col1_hi]   – tool types
-    # col2: [col1_hi,   col2_hi]   – runs in well
-    # col3: [col2_hi,   ∞      ]   – notes
-    col1_end  = max(w["x1"] for w in header_row if w["x0"] < header_x_run - 5)
-    col1_hi   = (col1_end + header_x_run) / 2
-    # col2_hi: use the right edge of the last "Run in Well" header word + a small
-    # buffer. Using the midpoint to the next header risks including the "Run" in
-    # "Run #1:..." (which sits just below the midpoint) in the wrong column.
-    run_words = [w for w in header_row if header_x_run <= w["x0"] < header_x_notes - 5]
-    col2_end  = max((w["x1"] for w in run_words), default=header_x_notes)
-    col2_hi   = col2_end + 10  # tight boundary just past the last "Run in Well" word
+    # col1: [0,       col1_hi]  – tool types
+    # col2: [col1_hi, col2_hi]  – runs in well
+    # col3: [col2_hi, ∞      ]  – notes (returned as joined string)
+    col1_end = max(w["x1"] for w in header_row if w["x0"] < header_x_run - 5)
+    col1_hi  = (col1_end + header_x_run) / 2
+
+    # col2_hi: right edge of "Well" in the "Run in Well" header phrase.
+    # Fallback to a fixed offset if "Well" isn't found.
+    well_word = next((w for w in header_row if w["text"] == "Well"), None)
+    col2_hi   = (well_word["x1"] + 5) if well_word else (col1_hi + 60)
 
     # ── Parse data rows ───────────────────────────────────────────────────────
-    # Collect words per column per row, then join into strings
-    HEADER_TOL = 2  # pt: skip rows within this distance of the header
-    col1_rows, col2_rows, col3_rows = [], [], []
+    HEADER_TOL = 2  # pt
+    col1_rows, col2_rows, col3_lines = [], [], []
 
     for top, lw in sorted_lines:
-        # Skip the section title row and rows at/above header
         if top < header_top - HEADER_TOL:
             continue
+        on_header = abs(top - header_top) <= HEADER_TOL
+        if on_header:
+            continue  # skip the header row itself
         c1 = " ".join(w["text"] for w in lw if w["x0"] <  col1_hi).strip()
         c2 = " ".join(w["text"] for w in lw if col1_hi <= w["x0"] < col2_hi).strip()
         c3 = " ".join(w["text"] for w in lw if w["x0"] >= col2_hi).strip()
-        # On the header row itself, col1/col2 contain the column titles — skip them.
-        # But still capture notes (col3) which may start on the same y (e.g. Firebag
-        # puts "Note 1:..." at the same y as "Tool Type Run in Well").
-        on_header = abs(top - header_top) <= HEADER_TOL
-        if on_header:
-            c1, c2 = "", ""
         if c1: col1_rows.append(c1)
         if c2: col2_rows.append(c2)
-        if c3: col3_rows.append(c3)
+        if c3: col3_lines.append(c3)
 
     return {
         "tool_types": col1_rows,
         "runs":       col2_rows,
-        "notes":      col3_rows,
+        "notes":      "\n".join(col3_lines),
     }
 
 
@@ -565,12 +786,22 @@ def extract_page(page, requested_sections):
         if name == "Geological Formation Information":
             sections[name] = {
                 "raw_text":   extract_section_text(page, anchor),
-                "formations": parse_geo_formations(page, anchor, all_words),
+                "rows": parse_geo_formations(page, anchor, all_words),
             }
         elif name == "Logging Information":
             sections[name] = {
                 "raw_text": extract_section_text(page, anchor),
                 "columns":  parse_logging_information(page, anchor),
+            }
+        elif name == "Drilling Fluids":
+            sections[name] = {
+                "raw_text": extract_section_text(page, anchor),
+                "rows": parse_drilling_fluids(page, anchor),
+            }
+        elif name == "Casing Design":
+            sections[name] = {
+                "raw_text": extract_section_text(page, anchor),
+                "casing":   parse_casing_design(page, anchor),
             }
         else:
             sections[name] = {"raw_text": extract_section_text(page, anchor)}

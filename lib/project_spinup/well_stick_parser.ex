@@ -23,7 +23,7 @@ defmodule ProjectSpinup.WellStickParser do
           sections: %{
             "Geological Formation Information" => %{
               raw_text: "Geological Formation Information\\n...",
-              formations: [
+              rows: [
                 %{
                   formation: "Surface Casing",
                   masl_tvd: 489.1,
@@ -44,12 +44,12 @@ defmodule ProjectSpinup.WellStickParser do
 
   ## Available sections
 
-      "Geological Formation Information"   # structured (formations list) + raw_text
+      "Geological Formation Information"   # structured (rows list) + raw_text
       "Surface Location Information"       # raw_text
       "General Information"                # raw_text
       "Drilling Notes"                     # raw_text
       "Casing Accessories"                 # raw_text
-      "Drilling Fluids"                    # raw_text
+      "Drilling Fluids"                    # structured (rows list) + raw_text
       "Cementing"                          # raw_text
       "Drill Cutting / Coring Information" # raw_text
       "Casing Design"                      # raw_text
@@ -80,7 +80,7 @@ defmodule ProjectSpinup.WellStickParser do
   @type section :: %{
           raw_text: String.t(),
           columns: %{tool_types: [String.t()], runs: [String.t()], notes: [String.t()]} | nil,
-          formations: [formation()] | nil
+          rows: [formation()] | nil
         }
 
   @type page_result :: %{
@@ -168,13 +168,13 @@ defmodule ProjectSpinup.WellStickParser do
 
   defp cast_page(raw) do
     %{
-      page:      raw["page"],
-      valid:     raw["valid"],
+      page: raw["page"],
+      valid: raw["valid"],
       well_name: raw["well_name"],
-      uwi:       raw["uwi"],
-      well_id:   raw["well_id"],
-      licence:   raw["licence"],
-      sections:  cast_sections(raw["sections"] || %{})
+      uwi: raw["uwi"],
+      well_id: raw["well_id"],
+      licence: raw["licence"],
+      sections: cast_sections(raw["sections"] || %{})
     }
   end
 
@@ -188,22 +188,68 @@ defmodule ProjectSpinup.WellStickParser do
     base = %{raw_text: raw["raw_text"]}
 
     base =
-      case raw["formations"] do
-        nil        -> base
-        formations -> Map.put(base, :formations, Enum.map(formations, &cast_formation/1))
+      case raw["columns"] do
+        nil -> base
+        columns -> Map.put(base, :columns, cast_logging_columns(columns))
       end
 
-    case raw["columns"] do
-      nil     -> base
-      columns -> Map.put(base, :columns, cast_logging_columns(columns))
+    base =
+      case raw["rows"] do
+        nil ->
+          base
+
+        [] ->
+          Map.put(base, :rows, [])
+
+        [first | _] = rows ->
+          caster =
+            if Map.has_key?(first, "formation"),
+              do: &cast_formation/1,
+              else: &cast_fluid_row/1
+
+          Map.put(base, :rows, Enum.map(rows, caster))
+      end
+
+    case raw["casing"] do
+      nil -> base
+      casing -> Map.put(base, :casing, cast_casing(casing))
     end
+  end
+
+  defp cast_casing(raw) do
+    %{
+      columns: raw["columns"] || [],
+      rows:
+        Enum.map(raw["rows"] || [], fn r ->
+          %{
+            field: r["field"] || "",
+            surface: r["surface"] || "",
+            intermediate: r["intermediate"] || "",
+            main: r["main"] || ""
+          }
+        end)
+    }
+  end
+
+  defp cast_fluid_row(raw) do
+    %{
+      hole_section: raw["hole_section"] || "",
+      hole_size_mm: raw["hole_size_mm"] || "",
+      interval_mkb: raw["interval_mkb"] || "",
+      system_type: raw["system_type"] || "",
+      density_kg_m3: raw["density_kg_m3"] || "",
+      viscosity_s_l: raw["viscosity_s_l"] || "",
+      fluid_loss_ml: raw["fluid_loss_ml"] || "",
+      ph: raw["ph"] || "",
+      comments: raw["comments"] || ""
+    }
   end
 
   defp cast_logging_columns(raw) do
     %{
       tool_types: raw["tool_types"] || [],
-      runs:       raw["runs"]       || [],
-      notes:      raw["notes"]      || []
+      runs: raw["runs"] || [],
+      notes: raw["notes"] || ""
     }
   end
 
