@@ -18,6 +18,7 @@ defmodule ProjectSpinupWeb.Router do
     pipe_through :browser
 
     live "/", HomeLive
+    live "/results", ResultsLive
   end
 
   # Other scopes may use custom stacks.
