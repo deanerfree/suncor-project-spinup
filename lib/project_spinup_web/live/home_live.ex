@@ -54,6 +54,7 @@ defmodule ProjectSpinupWeb.HomeLive do
   def render(assigns) do
     ~H"""
     <Layouts.flash_group flash={@flash} />
+    <div id="local-storage" phx-hook="LocalStorageHook"></div>
     <div class="w-screen flex items-center justify-center">
       <div class="flex flex-col gap-8 text-center container p-8">
         <h1 class="text-4xl font-bold mb-4">Welcome to Suncor Project Spinup!</h1>
