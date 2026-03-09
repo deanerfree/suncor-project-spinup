@@ -73,7 +73,7 @@ SECTION_REGISTRY = [
 ]
 
 # Sections we can parse into structured data (beyond raw text)
-STRUCTURED_SECTIONS = {"Geological Formation Information", "Logging Information", "Drilling Fluids", "Casing Design"}
+STRUCTURED_SECTIONS = {"Geological Formation Information", "Logging Information", "Drilling Fluids", "Casing Design", "Surface Location Information"}
 
 # Column header sequences used for the geological formation table
 GEO_COL_SEQUENCES = [
@@ -382,6 +382,108 @@ def parse_geo_formations(page, anchor, all_words):
     rows = group_words_into_rows(region_words)
     records = [row_to_formation(r, boundaries) for r in rows]
     return [r for r in records if is_formation_row(r)]
+
+
+def parse_surface_location(page, anchor):
+    """
+    Parse Surface Location Information into two structured sub-sections:
+
+      elevation:
+        ground_level_masl  - Ground Level (masl)
+        kb_ground_level_m  - KB - Ground Level (m)
+        kb_elevation_mss   - KB Elevation (mSS)
+
+      coordinates:
+        system    - e.g. "NAD83 UTM"
+        northing  - Northing value
+        easting   - Easting value
+    """
+    region = page.crop((anchor.x_lo, anchor.y_top, anchor.x_hi, anchor.y_bot - 0.5))
+    rwords = region.extract_words()
+    lines  = build_line_index(rwords)
+    sorted_lines = sorted(lines.items())
+
+    # Skip the title row
+    data_lines = [(top, lw) for top, lw in sorted_lines
+                  if not any(w["text"] in ("Surface", "Location", "Information") for w in lw)]
+
+    # Find the x split between elevation (left) and coordinate (right) columns.
+    # The right column starts at "NAD83" or "Northing" or "Easting".
+    split_x = None
+    for _, lw in data_lines:
+        for w in lw:
+            if w["text"] in ("NAD83", "Northing:", "Easting:"):
+                split_x = w["x0"]
+                break
+        if split_x:
+            break
+
+    if split_x is None:
+        split_x = (anchor.x_lo + anchor.x_hi) / 2  # fallback: midpoint
+
+    # Known row label tokens for the elevation column — ALL must be present
+    ELEV_LABELS = {
+        "ground_level_masl": {"Ground", "Level", "(masl):"},
+        "kb_ground_level_m": {"KB", "Ground", "Level", "(m):"},
+        "kb_elevation_mss":  {"KB", "Elevation", "(mSS):"},
+    }
+
+    ALL_LABEL_TOKENS = {t for tokens in ELEV_LABELS.values() for t in tokens}
+    # Noise words that appear mid-row but aren't the numeric value
+    NOISE = {"To", "be", "updated", "once", "rig", "onsite", "-", "NAD83", "UTM", "Coordinates"}
+
+    elevation = {}
+    for _, lw in data_lines:
+        left_words = [w for w in lw if w["x0"] < split_x]
+        if not left_words:
+            continue
+        row_tokens = {w["text"] for w in left_words}
+        matched_field = None
+        for field, label_tokens in ELEV_LABELS.items():
+            if label_tokens <= row_tokens:  # subset: ALL label tokens must be present
+                matched_field = field
+                break
+        if matched_field is None or matched_field in elevation:
+            continue
+        # Value = first word that looks numeric (contains a digit), excluding labels/noise
+        value_words = [w for w in left_words
+                       if w["text"] not in ALL_LABEL_TOKENS
+                       and w["text"] not in NOISE
+                       and any(c.isdigit() for c in w["text"])]
+        elevation[matched_field] = value_words[0]["text"] if value_words else ""
+
+    # ── Coordinate fields ─────────────────────────────────────────────────────
+    coord_system = ""
+    northing = ""
+    easting  = ""
+    for _, lw in data_lines:
+        right_words = [w for w in lw if w["x0"] >= split_x]
+        if not right_words:
+            continue
+        texts = [w["text"] for w in right_words]
+        # System line: contains "NAD83"
+        if "NAD83" in texts:
+            coord_system = " ".join(t for t in texts
+                                    if t not in ("Northing:", "Easting:")).strip()
+        if "Northing:" in texts:
+            idx = texts.index("Northing:")
+            northing = " ".join(texts[idx+1:]).strip()
+        if "Easting:" in texts:
+            idx = texts.index("Easting:")
+            easting = " ".join(texts[idx+1:]).strip()
+
+    return {
+        "elevation": {
+            "ground_level_masl": elevation.get("ground_level_masl", ""),
+            "kb_ground_level_m": elevation.get("kb_ground_level_m", ""),
+            "kb_elevation_mss":  elevation.get("kb_elevation_mss", ""),
+        },
+        "coordinates": {
+            "system":   coord_system,
+            "northing": northing,
+            "easting":  easting,
+        },
+    }
 
 
 def parse_casing_design(page, anchor):
@@ -802,6 +904,11 @@ def extract_page(page, requested_sections):
             sections[name] = {
                 "raw_text": extract_section_text(page, anchor),
                 "casing":   parse_casing_design(page, anchor),
+            }
+        elif name == "Surface Location Information":
+            sections[name] = {
+                "raw_text": extract_section_text(page, anchor),
+                "location": parse_surface_location(page, anchor),
             }
         else:
             sections[name] = {"raw_text": extract_section_text(page, anchor)}

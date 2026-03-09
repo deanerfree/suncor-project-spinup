@@ -24,6 +24,9 @@ defmodule ProjectSpinupWeb.ResultsLive do
 
   defp section_type(section) do
     cond do
+      Map.has_key?(section, :location) ->
+        :location
+
       Map.has_key?(section, :casing) ->
         :casing
 
@@ -65,11 +68,59 @@ defmodule ProjectSpinupWeb.ResultsLive do
                 <h3 class="font-semibold">{section_name}</h3>
 
                 <%= case section_type(section) do %>
+                  <% :location -> %>
+                    <div class="mt-2 flex gap-8 text-sm">
+                      <table class="border-collapse">
+                        <tbody>
+                          <tr>
+                            <td class="pr-4 py-0.5 text-gray-500">Ground Level (masl)</td>
+                            <td class="border-b px-2 py-0.5 font-mono">
+                              {section.location.elevation.ground_level_masl}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td class="pr-4 py-0.5 text-gray-500">KB - Ground Level (m)</td>
+                            <td class="border-b px-2 py-0.5 font-mono">
+                              {section.location.elevation.kb_ground_level_m}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td class="pr-4 py-0.5 text-gray-500">KB Elevation (mSS)</td>
+                            <td class="border-b px-2 py-0.5 font-mono">
+                              {section.location.elevation.kb_elevation_mss}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <table class="border-collapse">
+                        <thead>
+                          <tr>
+                            <th colspan="2" class="text-left text-gray-500 font-normal pb-1">
+                              {section.location.coordinates.system}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td class="pr-4 py-0.5 text-gray-500">Northing</td>
+                            <td class="border-b px-2 py-0.5 font-mono">
+                              {section.location.coordinates.northing}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td class="pr-4 py-0.5 text-gray-500">Easting</td>
+                            <td class="border-b px-2 py-0.5 font-mono">
+                              {section.location.coordinates.easting}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
                   <% :casing -> %>
                     <% has_int = "intermediate" in section.casing.columns %>
                     <table class="w-full text-sm mt-2 border-collapse">
                       <thead>
-                        <tr class="bg-gray-100 text-[#71a3c1]">
+                        <tr class="bg-gray-100">
                           <th class="border px-2 py-1 text-left">Field</th>
                           <th class="border px-2 py-1">Surface</th>
                           <%= if has_int do %>
@@ -94,7 +145,7 @@ defmodule ProjectSpinupWeb.ResultsLive do
                   <% :geo_formations -> %>
                     <table class="w-full text-sm mt-2 border-collapse">
                       <thead>
-                        <tr class="bg-gray-100 text-[#282f36]">
+                        <tr class="bg-gray-100">
                           <th class="border px-2 py-1">Formation</th>
                           <th class="border px-2 py-1">MASL TVD</th>
                           <th class="border px-2 py-1">MKB TVD</th>
@@ -119,7 +170,7 @@ defmodule ProjectSpinupWeb.ResultsLive do
                   <% :drilling_fluids -> %>
                     <table class="w-full text-sm mt-2 border-collapse">
                       <thead>
-                        <tr class="bg-gray-100 text-[#282f36]">
+                        <tr class="bg-gray-100">
                           <th class="border px-2 py-1">Hole Section</th>
                           <th class="border px-2 py-1">Hole Size (mm)</th>
                           <th class="border px-2 py-1">Interval (mKB)</th>
@@ -154,7 +205,7 @@ defmodule ProjectSpinupWeb.ResultsLive do
                     rows = Enum.zip([pad.(cols.tool_types), pad.(cols.runs)]) %>
                     <table class="w-full text-sm mt-2 border-collapse">
                       <thead>
-                        <tr class="bg-gray-100 text-[#282f36]">
+                        <tr class="bg-gray-100">
                           <th class="border px-2 py-1 text-left">Tool Type</th>
                           <th class="border px-2 py-1 text-left">Run in Well</th>
                         </tr>
