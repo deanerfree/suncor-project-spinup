@@ -214,6 +214,29 @@ defmodule ProjectSpinup.WellStickParser do
       nil -> base
       casing -> Map.put(base, :casing, cast_casing(casing))
     end
+
+    case raw["location"] do
+      nil -> base
+      location -> Map.put(base, :location, cast_location(location))
+    end
+  end
+
+  defp cast_location(raw) do
+    elev = raw["elevation"] || %{}
+    coords = raw["coordinates"] || %{}
+
+    %{
+      elevation: %{
+        ground_level_masl: elev["ground_level_masl"] || "",
+        kb_ground_level_m: elev["kb_ground_level_m"] || "",
+        kb_elevation_mss: elev["kb_elevation_mss"] || ""
+      },
+      coordinates: %{
+        system: coords["system"] || "",
+        northing: coords["northing"] || "",
+        easting: coords["easting"] || ""
+      }
+    }
   end
 
   defp cast_casing(raw) do
