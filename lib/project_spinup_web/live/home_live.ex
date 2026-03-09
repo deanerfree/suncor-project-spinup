@@ -12,6 +12,10 @@ defmodule ProjectSpinupWeb.HomeLive do
     {:noreply, socket}
   end
 
+  def handle_event("load_result", _params, socket) do
+    {:noreply, socket}
+  end
+
   def handle_event("cancel_upload", %{"ref" => ref}, socket) do
     {:noreply, cancel_upload(socket, :pdf, ref)}
   end
