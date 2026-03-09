@@ -40,6 +40,13 @@ defmodule ProjectSpinup.GenServer do
   end
 
   @impl true
+  def handle_call({:populate_template, request}, _from, state) do
+    Logger.info("Received template population request: #{inspect(request)}")
+    # Placeholder for template population logic
+    {:reply, {:ok, %{message: "Template population not implemented yet"}}, state}
+  end
+
+  @impl true
   def handle_call(msg, _from, state) do
     Logger.warning("#{__MODULE__} received unhandled call: #{inspect(msg)}")
     {:reply, {:error, :unhandled}, state}
