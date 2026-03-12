@@ -42,6 +42,38 @@ defmodule ProjectSpinupWeb.ResultsLive do
   defp atomize_keys(list) when is_list(list), do: Enum.map(list, &atomize_keys/1)
   defp atomize_keys(value), do: value
 
+  @section_order [
+    "Surface Location Information",
+    "Geological Formation Information",
+    "Drill Cutting / Coring Information",
+    "Drilling Fluids",
+    "Drilling Notes",
+    "Casing Design",
+    "Logging Information",
+    "General Information",
+    "Piezometer Design",
+    "Thermocouple Design",
+    "Cementing",
+    "Casing Accessories"
+  ]
+
+  defp ordered_sections(sections) do
+    known =
+      Enum.flat_map(@section_order, fn name ->
+        case Map.get(sections, String.to_atom(name)) do
+          nil -> []
+          section -> [{name, section}]
+        end
+      end)
+
+    unknown =
+      sections
+      |> Enum.reject(fn {k, _} -> Atom.to_string(k) in @section_order end)
+      |> Enum.sort_by(fn {k, _} -> Atom.to_string(k) end)
+
+    known ++ unknown
+  end
+
   defp section_type(section) do
     cond do
       Map.has_key?(section, :location) ->
@@ -59,6 +91,8 @@ defmodule ProjectSpinupWeb.ResultsLive do
       Map.has_key?(section, :columns) ->
         :logging
 
+      # return nil for Thermocouple, Cementing, Casing Accessories
+
       true ->
         :raw
     end
@@ -72,8 +106,14 @@ defmodule ProjectSpinupWeb.ResultsLive do
         <div class="w-full flex flex-col gap-8 text-center p-8">
           <h1 class="text-3xl font-bold mb-4">Parsed Well Stick Data</h1>
           <div class="flex flex-col gap-4 text-lg font-medium">
-            <p class="font-medium">Review the extracted data below.</p>
-            <p class="">If you see any issues please edit</p>
+            <p class="font-medium">Review the following data that has been extracted.</p>
+            <p class="">
+              If you see any issues please make the necessary changes before populating the excel files
+            </p>
+            <p>
+              >
+              Once you are satisfied with the data, click the "Generate Excel Files" button to download the populated templates.
+            </p>
           </div>
         </div>
         <%= for page <- @result do %>
@@ -83,7 +123,7 @@ defmodule ProjectSpinupWeb.ResultsLive do
             <p>Well ID: {page.well_id}</p>
             <p>Licence: {page.licence}</p>
 
-            <%= for {section_name, section} <- page.sections, section != nil do %>
+            <%= for {section_name, section} <- ordered_sections(page.sections), section != nil do %>
               <div class="mt-4 text-left">
                 <h3 class="font-semibold">{section_name}</h3>
 
@@ -247,6 +287,14 @@ defmodule ProjectSpinupWeb.ResultsLive do
                 <% end %>
               </div>
             <% end %>
+            <div class="mt-4">
+              <button
+                class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition"
+                phx-click="generate_excel_files"
+              >
+                Generate Excel Files
+              </button>
+            </div>
           </div>
         <% end %>
       <% else %>
