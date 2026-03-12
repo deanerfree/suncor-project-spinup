@@ -20,6 +20,7 @@ defmodule ProjectSpinupWeb.Router do
     live "/", HomeLive
     live "/results", ResultsLive
     live "/download", DownloadLive
+    get "/download/file", DownloadController, :file
   end
 
   # Other scopes may use custom stacks.

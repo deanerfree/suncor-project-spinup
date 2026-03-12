@@ -13,6 +13,19 @@
 //   <div id="my-element" phx-hook="MyHook">...</div>
 //
 // Note: always include a unique DOM id alongside phx-hook.
+const DownloadHook = {
+  mounted() {
+    this.handleEvent("download", ({ url }) => {
+      const link = document.createElement("a")
+      link.href = url
+      link.download = ""
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    })
+  }
+}
+
 const DragNDropHook = {
   mounted() {
     this.el.addEventListener("dragover", (event: DragEvent) => {
@@ -46,6 +59,6 @@ const LocalStorageHook = {
   }
 }
 
-const hooks: Record<string, object> = { DragNDropHook, LocalStorageHook }
+const hooks: Record<string, object> = { DragNDropHook, LocalStorageHook, DownloadHook }
 
 export default hooks

@@ -86,7 +86,7 @@ defmodule ProjectSpinup.GenServer do
           output_dir: output_dir
         })
 
-      case System.cmd("python3", [script], input: payload, stderr_to_stdout: false) do
+      case System.cmd("python3", [script, payload], stderr_to_stdout: false) do
         {output, 0} ->
           case Jason.decode(output) do
             {:ok, %{"status" => "ok", "files" => [first | _]}} ->
