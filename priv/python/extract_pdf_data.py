@@ -56,20 +56,22 @@ FULL_WIDTH_SECTIONS = {
 # Each entry:  (canonical_name, [first_word, second_word, ...])
 # The section is anchored to the x0 of the first matching word.
 SECTION_REGISTRY = [
-    ("Geological Formation Information", ["Geological", "Formation", "Information"]),
-    ("Surface Location Information",     ["Surface",    "Location",  "Information"]),
-    ("General Information",              ["General",    "Information"]),
-    ("Drilling Notes",                   ["Drilling",   "Notes"]),
-    ("Casing Accessories",               ["Casing",     "Accessories"]),
-    ("Drilling Fluids",                  ["Drilling",   "Fluids"]),
-    ("Cementing",                        ["Cementing"]),
+    ("Geological Formation Information", [["Geological", "Formation", "Information"]]),
+    ("Surface Location Information",     [["Surface",    "Location",  "Information"]]),
+    ("General Information",              [["General",    "Information"]]),
+    ("Drilling Notes",                   [["Drilling",   "Notes"]]),
+    ("Casing Accessories",               [["Casing",     "Accessories"]]),
+    ("Drilling Fluids",                  [["Drilling",   "Fluids"]]),
+    ("Cementing",                        [["Cementing"]]),
     # "Cutting" (space-separated) or "Cutting/Coring" (slash-joined, no spaces)
-    ("Drill Cutting / Coring Information", ["Drill", "Cutting"]),
-    ("Drill Cutting / Coring Information", ["Drill", "Cutting/Coring"]),
-    ("Casing Design",                    ["Casing",     "Design"]),
-    ("Piezometer Design",                ["Piezometer", "Design"]),
-    ("Logging Information",              ["Logging",    "Information"]),
-    ("Thermocouple Design",              ["Thermocouple", "Design"]),
+    ("Drill Cutting / Coring Information", [
+    ["Drill", "Cutting"],
+    ["Drill", "Cutting/Coring"],
+    ]),
+    ("Casing Design",                    [["Casing",     "Design"]]),
+    ("Piezometer Design",                [["Piezometer", "Design"]]),
+    ("Logging Information",              [["Logging",    "Information"]]),
+    ("Thermocouple Design",              [["Thermocouple", "Design"]]),
 ]
 
 # Sections we can parse into structured data (beyond raw text)
@@ -160,12 +162,16 @@ def detect_section_anchors(words):
     found = []
 
     for top_key, line_words in sorted(lines.items()):
-        for name, seq in SECTION_REGISTRY:
-            for i, w in enumerate(line_words):
-                if w["text"] == seq[0] and sequence_starts_at(line_words, seq, i):
-                    last_word = line_words[i + len(seq) - 1]
-                    found.append(SectionAnchor(name, w["x0"], last_word["x1"], top_key))
-                    break   # don't double-match on the same line
+        for name, sequences in SECTION_REGISTRY:       # sequences is now a list of alternatives
+            for seq in sequences:                       # try each alternative in order
+                for i, w in enumerate(line_words):
+                    if w["text"] == seq[0] and sequence_starts_at(line_words, seq, i):
+                        last_word = line_words[i + len(seq) - 1]
+                        found.append(SectionAnchor(name, w["x0"], last_word["x1"], top_key))
+                        break   # don't double-match on the same line
+                else:
+                    continue    # this seq didn't match — try the next alternative
+                break           # a seq matched; skip remaining alternatives for this name
 
     return found
 
