@@ -3,6 +3,7 @@ defmodule ProjectSpinupWeb.ResultsLive do
     LiveView to display the results of the PDF parsing and template population. This will be the final step in the project spinup process where the user can review the extracted data and download the populated templates.
   """
   use ProjectSpinupWeb, :live_view
+  alias ProjectSpinup.GenServer
 
   def mount(_params, _session, socket) do
     {:ok, assign(socket, :result, nil)}
@@ -11,6 +12,25 @@ defmodule ProjectSpinupWeb.ResultsLive do
   def handle_event("load_result", %{"data" => data}, socket) do
     result = atomize_keys(data)
     {:noreply, assign(socket, :result, result)}
+  end
+
+  def handle_event("generate_excel_files", _params, socket) do
+    results = GenServer.populate_template(socket.assigns.result)
+
+    socket =
+      case results do
+        {:ok, %{file_path: file_path}} ->
+          token = Phoenix.Token.sign(ProjectSpinupWeb.Endpoint, "download", file_path)
+
+          socket
+          |> put_flash(:info, "Excel files generated successfully")
+          |> push_navigate(to: ~p"/download?token=#{token}")
+
+        {:error, reason} ->
+          put_flash(socket, :error, "Failed to generate Excel files: #{inspect(reason)}")
+      end
+
+    {:noreply, socket}
   end
 
   defp atomize_keys(map) when is_map(map) do

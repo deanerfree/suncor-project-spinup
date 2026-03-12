@@ -41,9 +41,9 @@ defmodule ProjectSpinup.GenServer do
 
   @impl true
   def handle_call({:populate_template, request}, _from, state) do
-    Logger.info("Received template population request: #{inspect(request)}")
-    # Placeholder for template population logic
-    {:reply, {:ok, %{message: "Template population not implemented yet"}}, state}
+    Logger.info("Received template population request")
+    result = run_build_excel(request)
+    {:reply, result, state}
   end
 
   @impl true
@@ -62,6 +62,48 @@ defmodule ProjectSpinup.GenServer do
   def handle_info(msg, state) do
     Logger.warning("#{__MODULE__} received unhandled info: #{inspect(msg)}")
     {:noreply, state}
+  end
+
+  @spec run_build_excel([map()]) :: {:ok, map()} | {:error, String.t()}
+  defp run_build_excel(pages) do
+    page = Enum.find(pages, List.first(pages), & &1[:valid] != false)
+
+    if is_nil(page) do
+      {:error, "No valid pages in request"}
+    else
+      script =
+        :project_spinup
+        |> :code.priv_dir()
+        |> Path.join("python/build_excel.py")
+
+      output_dir = System.tmp_dir!()
+
+      payload =
+        Jason.encode!(%{
+          well_name: page[:well_name] || "",
+          uwi: page[:uwi] || "",
+          licence: page[:licence] || "",
+          output_dir: output_dir
+        })
+
+      case System.cmd("python3", [script], input: payload, stderr_to_stdout: false) do
+        {output, 0} ->
+          case Jason.decode(output) do
+            {:ok, %{"status" => "ok", "files" => [first | _]}} ->
+              {:ok, %{file_path: first}}
+
+            {:ok, result} ->
+              {:error, "Unexpected response: #{inspect(result)}"}
+
+            {:error, _} ->
+              {:error, "Failed to parse script output: #{String.trim(output)}"}
+          end
+
+        {output, code} ->
+          Logger.error("[GenServer] build_excel.py exited #{code}: #{inspect(output)}")
+          {:error, "Excel generation failed (exit #{code}): #{String.trim(output)}"}
+      end
+    end
   end
 
   @spec handle_incoming_pdf_request(String.t()) :: {:ok, map()} | {:error, atom() | String.t()}

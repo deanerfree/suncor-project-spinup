@@ -4,32 +4,38 @@ Script to convert the stick diagram PDF into an Excel file with the same data.
 """
 import openpyxl
 import json
+import os
 import sys
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+TEMPLATE_DIR = os.path.join(SCRIPT_DIR, "excel_templates")
+
 templates = [
-    'excel/TEMPLATE_EOW Report.xlsx',
-    'excel/TEMPLATE_AM Report.xlsx',
-    'excel/TEMPLATE_Mud Resistivity.xlsx',
-    'excel/TEMPLATE_Sample Descriptions.xlsx',
+    os.path.join(TEMPLATE_DIR, 'TEMPLATE_EOW Report.xlsx'),
+    os.path.join(TEMPLATE_DIR, 'TEMPLATE_AM Report.xlsx'),
+    os.path.join(TEMPLATE_DIR, 'TEMPLATE_Mud Resistivity.xlsx'),
+    os.path.join(TEMPLATE_DIR, 'TEMPLATE_Sample Descriptions.xlsx'),
 ]
 
-def populate_eow_report(data):
-    wb = openpyxl.load_workbook('excel/TEMPLATE_EOW Report.xlsx')
+def populate_eow_report(data, output_dir):
+    wb = openpyxl.load_workbook(os.path.join(TEMPLATE_DIR, 'TEMPLATE_EOW Report.xlsx'))
     ws = wb.active
 
     ws['A1'] = data['well_name']
     ws['A2'] = data['uwi']
     ws['A3'] = data['licence']
 
-    wb.save(data["well_name"] + "_EOW Report.xlsx")
-    return data['well_name'] + "_EOW Report.xlsx"
+    out_path = os.path.join(output_dir, data["well_name"] + "_EOW Report.xlsx")
+    wb.save(out_path)
+    return out_path
 
 
 def main():
     data = json.loads(sys.stdin.read())
+    output_dir = data.get("output_dir", os.getcwd())
 
     files = []
-    files.append(populate_eow_report(data))
+    files.append(populate_eow_report(data, output_dir))
 
     print(json.dumps({"status": "ok", "files": files}))
 
