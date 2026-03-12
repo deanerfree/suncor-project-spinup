@@ -19,6 +19,7 @@ defmodule ProjectSpinupWeb.Router do
 
     live "/", HomeLive
     live "/results", ResultsLive
+    live "/download", DownloadLive
   end
 
   # Other scopes may use custom stacks.
