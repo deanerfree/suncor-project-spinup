@@ -332,7 +332,9 @@ def detect_geo_column_boundaries(words):
     boundaries = []
     for i, col in enumerate(ordered):
         if i == 0:
-            x_lo = anchor_x[col]
+            x_lo = anchor_x[col] - 2  # small buffer: region.extract_words() can return
+                                       # coords slightly less than all_words coords for
+                                       # words at the exact left column edge
             x_hi = anchor_x[ordered[1]] - FORMATION_RIGHT_MARGIN
         elif i == n - 1:
             x_lo = (anchor_x[ordered[i-1]] + anchor_x[col]) / 2
