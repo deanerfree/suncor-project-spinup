@@ -95,6 +95,44 @@ defmodule ProjectSpinupWeb.Layouts do
   end
 
   @doc """
+  Renders a page header with a 3-step workflow progress indicator.
+
+  ## Examples
+
+      <Layouts.workflow_header current_step={:review} />
+
+  """
+  attr :current_step, :atom, values: [:upload, :review, :download], required: true
+
+  def workflow_header(assigns) do
+    ~H"""
+    <div class="bg-base-100 border-b border-base-300 mb-6">
+      <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+        <span class="font-bold text-lg">Suncor Project Spinup</span>
+        <.theme_toggle />
+      </div>
+      <div class="max-w-5xl mx-auto px-4 pb-4">
+        <ul class="steps w-full text-sm">
+          <li class={["step", step_index(@current_step) >= 0 && "step-primary"]}>
+            Upload PDF
+          </li>
+          <li class={["step", step_index(@current_step) >= 1 && "step-primary"]}>
+            Review Data
+          </li>
+          <li class={["step", step_index(@current_step) >= 2 && "step-primary"]}>
+            Download
+          </li>
+        </ul>
+      </div>
+    </div>
+    """
+  end
+
+  defp step_index(:upload), do: 0
+  defp step_index(:review), do: 1
+  defp step_index(:download), do: 2
+
+  @doc """
   Provides dark vs light theme toggle based on themes defined in app.css.
 
   See <head> in root.html.heex which applies the theme before page load.

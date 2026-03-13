@@ -4,6 +4,7 @@ defmodule ProjectSpinupWeb.ReviewLive do
   """
   use ProjectSpinupWeb, :live_view
   alias ProjectSpinup.GenServer
+  alias ProjectSpinupWeb.Layouts
 
   def mount(_params, _session, socket) do
     {:ok, assign(socket, :result, nil)}
