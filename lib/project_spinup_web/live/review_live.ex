@@ -75,10 +75,7 @@ defmodule ProjectSpinupWeb.ReviewLive do
     "Casing Design",
     "Logging Information",
     "General Information",
-    "Piezometer Design",
-    "Thermocouple Design",
-    "Cementing",
-    "Casing Accessories"
+    "Piezometer Design"
   ]
 
   defp infer_afe(result) do
@@ -114,12 +111,7 @@ defmodule ProjectSpinupWeb.ReviewLive do
         end
       end)
 
-    unknown =
-      sections
-      |> Enum.reject(fn {k, _} -> Atom.to_string(k) in @section_order end)
-      |> Enum.sort_by(fn {k, _} -> Atom.to_string(k) end)
-
-    known ++ unknown
+    known
   end
 
   defp section_type(section) do
