@@ -61,15 +61,16 @@ def populate_am_report(data, output_dir):
 
     # Build geological formation information
     for i, item in enumerate(data['sections']['Geological Formation Information']['rows'], start=1):
+        row = 33 + i
         if mcmurray_top == 0 and 'mcmurray' in item['formation'].lower():
             mcmurray_top = round(item['mkb_tvd'])
         if item['formation'].lower() == 'total depth':
             total_depth = item['mkb_tvd']
         
-        ws[f'A{33 + i}'] = item['formation']
-        ws[f'D{33 + i}'] = item['mkb_tvd']
-        ws[f'E{33 + i}'] = item['mkb_tvd']
-        ws[f'F{33 + i}'] = item['masl_tvd']
+        ws[f'A{row}'] = item['formation']
+        ws[f'D{row}'] = item['mkb_tvd']
+        ws[f'E{row}'] = item['mkb_tvd']
+        ws[f'F{row}'] = item['masl_tvd']
 
     # Build mud resistivity information
     resistivity_start = mcmurray_top - 20
