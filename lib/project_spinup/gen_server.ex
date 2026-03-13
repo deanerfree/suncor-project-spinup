@@ -20,7 +20,7 @@ defmodule ProjectSpinup.GenServer do
     GenServer.call(__MODULE__, {:pdf_request, request})
   end
 
-  @spec populate_template(map()) :: {:ok, map()} | {:error, atom() | String.t()}
+  @spec populate_template([map()]) :: {:ok, map()} | {:error, atom() | String.t()}
   def populate_template(request) do
     GenServer.call(__MODULE__, {:populate_template, request})
   end
