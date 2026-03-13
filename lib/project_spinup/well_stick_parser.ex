@@ -195,29 +195,21 @@ defmodule ProjectSpinup.WellStickParser do
 
     base =
       case raw["rows"] do
-        nil ->
-          base
-
-        [] ->
-          Map.put(base, :rows, [])
-
-        [first | _] = rows ->
-          caster =
-            if Map.has_key?(first, "formation"),
-              do: &cast_formation/1,
-              else: &cast_fluid_row/1
-
-          Map.put(base, :rows, Enum.map(rows, caster))
+        nil -> base
+        rows -> Map.put(base, :rows, cast_rows(rows))
       end
 
-    case raw["casing"] do
-      nil -> base
-      casing -> Map.put(base, :casing, cast_casing(casing))
-    end
+    base =
+      if casing = raw["casing"] do
+        Map.put(base, :casing, cast_casing(casing))
+      else
+        base
+      end
 
-    case raw["location"] do
-      nil -> base
-      location -> Map.put(base, :location, cast_location(location))
+    if location = raw["location"] do
+      Map.put(base, :location, cast_location(location))
+    else
+      base
     end
   end
 
