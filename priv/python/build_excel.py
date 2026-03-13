@@ -15,6 +15,7 @@ TEMPLATE_DIR = os.path.join(SCRIPT_DIR, "excel_templates")
 templates = [
     os.path.join(TEMPLATE_DIR, 'TEMPLATE_EOW Report.xlsx'),
     os.path.join(TEMPLATE_DIR, 'TEMPLATE_AM Report.xlsx'),
+    os.path.join(TEMPLATE_DIR, 'TEMPLATE2_AM Report.xlsx'),
     os.path.join(TEMPLATE_DIR, 'TEMPLATE_Mud Resistivity.xlsx'),
     os.path.join(TEMPLATE_DIR, 'TEMPLATE_Sample Descriptions.xlsx'),
 ]
@@ -46,6 +47,7 @@ def populate_am_report(data, output_dir):
     ws['C11'] = data['licence']
     ws['D2'] = data['well_name']
     ws['D3'] = data['uwi']
+    ws['C12'] = data.get('afe', '')
     ws['C13'] = data.get('spud_date', '')
     ws['I5'] = data.get('og', '')
     ws['L5'] = data.get('og_ph', '')
