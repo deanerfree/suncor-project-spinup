@@ -18,7 +18,7 @@ defmodule ProjectSpinupWeb.Router do
     pipe_through :browser
 
     live "/", HomeLive
-    live "/results", ResultsLive
+    live "/review", ReviewLive
     live "/download", DownloadLive
     get "/download/file", DownloadController, :file
   end

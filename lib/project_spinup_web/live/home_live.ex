@@ -41,7 +41,7 @@ defmodule ProjectSpinupWeb.HomeLive do
           socket
           |> put_flash(:info, "PDF processed successfully")
           |> assign(:result, pages)
-          |> push_event("store_result", %{key: "well_stick", data: pages, path: "/results"})
+          |> push_event("store_result", %{key: "well_stick", data: pages, path: "/review"})
 
         [{:error, reason}] ->
           put_flash(socket, :error, "Processing failed: #{inspect(reason)}")

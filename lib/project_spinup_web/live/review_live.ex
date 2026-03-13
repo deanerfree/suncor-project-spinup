@@ -1,4 +1,4 @@
-defmodule ProjectSpinupWeb.ResultsLive do
+defmodule ProjectSpinupWeb.ReviewLive do
   @moduledoc """
     LiveView to display the results of the PDF parsing and template population. This will be the final step in the project spinup process where the user can review the extracted data and download the populated templates.
   """
