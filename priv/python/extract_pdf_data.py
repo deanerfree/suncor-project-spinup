@@ -266,7 +266,13 @@ def compute_bounds(anchors, page_height, words=None):
     for a in all_sorted:
         a.y_top = a.top
 
-        MIN_OVERLAP_PT = 30
+        # Use a small threshold (5pt) so that sections whose x-ranges are
+        # "nearly adjacent" — e.g. Casing Design [~280,449] and Logging
+        # Information [0,~290] which only share ~10pt — still properly
+        # clip each other's y_bot.  The old 30pt threshold caused Casing
+        # Design's y_bot to fall through to the footer, pulling Logging
+        # Information notes/run-descriptions into the Casing Design crop.
+        MIN_OVERLAP_PT = 5
         y_bot = page_height
         a_width = (PAGE_X_HI if a.x_hi >= 9999 else a.x_hi) - a.x_lo
         for b in all_sorted:
