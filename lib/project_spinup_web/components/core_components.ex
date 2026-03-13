@@ -295,6 +295,37 @@ defmodule ProjectSpinupWeb.CoreComponents do
     """
   end
 
+  @doc """
+  Renders a phone number input that auto-formats to `000-111-1234` as the user types.
+  """
+  attr :id, :string, required: true
+  attr :name, :string, required: true
+  attr :label, :string, default: nil
+  attr :value, :string, default: ""
+  attr :class, :any, default: nil
+  attr :rest, :global, include: ~w(disabled required)
+
+  def phone_input(assigns) do
+    ~H"""
+    <div class="fieldset mb-2">
+      <label>
+        <span :if={@label} class="label mb-1">{@label}</span>
+        <input
+          type="tel"
+          id={@id}
+          name={@name}
+          value={@value}
+          placeholder="XXX-XXX-XXXX"
+          maxlength="12"
+          phx-hook="PhoneInputHook"
+          class={@class || "w-full input"}
+          {@rest}
+        />
+      </label>
+    </div>
+    """
+  end
+
   # Helper used by inputs to generate form errors
   defp error(assigns) do
     ~H"""

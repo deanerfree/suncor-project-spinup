@@ -5,7 +5,8 @@ defmodule ProjectSpinupWeb.HomeLive do
     {:ok,
      socket
      |> allow_upload(:pdf, accept: ~w(.pdf), max_entries: 1)
-     |> assign(:result, nil)}
+     |> assign(:result, nil)
+     |> assign(:page_loaded, connected?(socket))}
   end
 
   def handle_event("validate", _params, socket) do
@@ -122,6 +123,7 @@ defmodule ProjectSpinupWeb.HomeLive do
                     class="font-medium text-gray-400 hover:text-gray-700 hover:cursor-pointer"
                     phx-click="cancel_upload"
                     phx-value-ref={entry.ref}
+                    disabled={not @page_loaded}
                   >
                     &times;
                   </button>

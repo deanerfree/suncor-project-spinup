@@ -7,6 +7,8 @@ import json
 import os
 import sys
 
+from datetime import datetime
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_DIR = os.path.join(SCRIPT_DIR, "excel_templates")
 
@@ -24,6 +26,9 @@ def populate_eow_report(data, output_dir):
     ws['A3'] = data['well_name']
     ws['D3'] = data['uwi']
     ws['H3'] = data['licence']
+    ws['H5'] = data.get('rig_name', '')
+    ws['I3'] = data.get('spud_date', '')
+    ws['F3'] = data.get('geo_day', '') + ' (Day) \n ' + data.get('geo_night', '') + ' (Night)'
 
     out_path = os.path.join(output_dir, data["well_name"] + "_EOW Report.xlsx")
     wb.save(out_path)
