@@ -16,7 +16,19 @@ defmodule ProjectSpinupWeb.ResultsLive do
 
   def handle_event("generate_excel_files", params, socket) do
     rig_details =
-      Map.take(params, ["rig_name", "spud_date", "og", "og_ph", "geo_day", "geo_day_ph", "geo_night", "geo_night_ph", "wss_day", "wss_night", "rig_ph"])
+      Map.take(params, [
+        "rig_name",
+        "spud_date",
+        "og",
+        "og_ph",
+        "geo_day",
+        "geo_day_ph",
+        "geo_night",
+        "geo_night_ph",
+        "wss_day",
+        "wss_night",
+        "rig_ph"
+      ])
       |> Map.update("spud_date", "", fn date ->
         case Date.from_iso8601(date) do
           {:ok, d} -> Calendar.strftime(d, "%m/%d/%Y")
