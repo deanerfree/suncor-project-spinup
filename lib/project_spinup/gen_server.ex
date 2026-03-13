@@ -90,22 +90,24 @@ defmodule ProjectSpinup.GenServer do
         }))
 
       case System.cmd("python3", [script, payload], stderr_to_stdout: false) do
-        {output, 0} ->
-          case Jason.decode(output) do
-            {:ok, %{"status" => "ok", "files" => files}} when is_list(files) ->
-              {:ok, %{file_paths: files}}
-
-            {:ok, result} ->
-              {:error, "Unexpected response: #{inspect(result)}"}
-
-            {:error, _} ->
-              {:error, "Failed to parse script output: #{String.trim(output)}"}
-          end
-
+        {output, 0} -> parse_excel_output(output)
         {output, code} ->
           Logger.error("[GenServer] build_excel.py exited #{code}: #{inspect(output)}")
           {:error, "Excel generation failed (exit #{code}): #{String.trim(output)}"}
       end
+    end
+  end
+
+  defp parse_excel_output(output) do
+    case Jason.decode(output) do
+      {:ok, %{"status" => "ok", "files" => files}} when is_list(files) ->
+        {:ok, %{file_paths: files}}
+
+      {:ok, result} ->
+        {:error, "Unexpected response: #{inspect(result)}"}
+
+      {:error, _} ->
+        {:error, "Failed to parse script output: #{String.trim(output)}"}
     end
   end
 
