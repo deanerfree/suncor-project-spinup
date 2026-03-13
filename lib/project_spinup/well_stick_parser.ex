@@ -246,6 +246,13 @@ defmodule ProjectSpinup.WellStickParser do
     }
   end
 
+  defp cast_rows([]), do: []
+
+  defp cast_rows([first | _] = rows) do
+    caster = if Map.has_key?(first, "formation"), do: &cast_formation/1, else: &cast_fluid_row/1
+    Enum.map(rows, caster)
+  end
+
   defp cast_fluid_row(raw) do
     %{
       hole_section: raw["hole_section"] || "",
