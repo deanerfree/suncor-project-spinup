@@ -20,6 +20,7 @@ defmodule ProjectSpinupWeb.ReviewLive do
       Map.take(params, [
         "rig_name",
         "spud_date",
+        "afe",
         "og",
         "og_ph",
         "geo_day",
@@ -80,6 +81,16 @@ defmodule ProjectSpinupWeb.ReviewLive do
     "Casing Accessories"
   ]
 
+  defp infer_afe(result) do
+    names = result |> Enum.map(& &1.well_name) |> Enum.join(" ")
+
+    cond do
+      String.contains?(names, "Firebag") -> "SUENTQ00165983"
+      String.contains?(names, "LS") or String.contains?(names, "Lightspeed") -> "SUENTQ00166572"
+      true -> ""
+    end
+  end
+
   defp section_icon("Surface Location Information"), do: "hero-map-pin"
   defp section_icon("Geological Formation Information"), do: "hero-beaker"
   defp section_icon("Drill Cutting / Coring Information"), do: "hero-wrench-screwdriver"
@@ -137,8 +148,9 @@ defmodule ProjectSpinupWeb.ReviewLive do
 
   def render(assigns) do
     ~H"""
+    <Layouts.workflow_header current_step={:review} />
     <div id="well-storage" phx-hook="LocalStorageHook" data-key="well_stick"></div>
-    <div class="max-w-5xl mx-auto w-full px-4 py-8">
+    <div class="max-w-5xl mx-auto w-full px-4 pb-8">
       <%= if @result do %>
         <%= for page <- @result do %>
           <div class="mb-6">
@@ -181,6 +193,16 @@ defmodule ProjectSpinupWeb.ReviewLive do
               <div class="gap-4 grid grid-cols-2">
                 <.input type="text" name="rig_name" label="Rig Name" value="" />
                 <.input type="date" name="spud_date" label="Spud Date" value="" />
+                <.input
+                  type="select"
+                  name="afe"
+                  label="AFE"
+                  value={infer_afe(@result)}
+                  options={[
+                    {"SUENTQ00166572 (Lightspeed / LS)", "SUENTQ00166572"},
+                    {"SUENTQ00165983 (Firebag)", "SUENTQ00165983"}
+                  ]}
+                />
                 <div class="col-span-2 flex flex-col gap-4 text-left border border-base-300 rounded-lg p-4">
                   <h3 class="font-semibold flex items-center gap-2">
                     <.icon name="hero-identification" class="size-4 text-primary" />
