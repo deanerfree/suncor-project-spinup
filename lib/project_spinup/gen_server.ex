@@ -78,19 +78,22 @@ defmodule ProjectSpinup.GenServer do
 
       output_dir = System.tmp_dir!()
 
+      rig_details = page[:rig_details] || %{}
+
       payload =
-        Jason.encode!(%{
-          well_name: page[:well_name] || "",
-          uwi: page[:uwi] || "",
-          licence: page[:licence] || "",
-          output_dir: output_dir
-        })
+        Jason.encode!(Map.merge(rig_details, %{
+          "well_name" => page[:well_name] || "",
+          "uwi" => page[:uwi] || "",
+          "licence" => page[:licence] || "",
+          "sections" => page[:sections] || %{},
+          "output_dir" => output_dir
+        }))
 
       case System.cmd("python3", [script, payload], stderr_to_stdout: false) do
         {output, 0} ->
           case Jason.decode(output) do
-            {:ok, %{"status" => "ok", "files" => [first | _]}} ->
-              {:ok, %{file_path: first}}
+            {:ok, %{"status" => "ok", "files" => files}} when is_list(files) ->
+              {:ok, %{file_paths: files}}
 
             {:ok, result} ->
               {:error, "Unexpected response: #{inspect(result)}"}

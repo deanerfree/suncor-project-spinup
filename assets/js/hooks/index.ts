@@ -45,20 +45,56 @@ const DragNDropHook = {
 
 const LocalStorageHook = {
   mounted() {
-    const saved = localStorage.getItem("well_stick")
-    console.log("LocalStorageHook mounted, found saved value:", saved)
+    const key = (this.el as HTMLElement).dataset.key || "well_stick"
+    const saved = localStorage.getItem(key)
 
-    if (saved) {
-      this.pushEvent("load_result", { data: JSON.parse(saved) })
+    if (key === "well_stick") {
+      if (saved) {
+        this.pushEvent("load_result", { data: JSON.parse(saved) })
+      }
+
+      this.handleEvent("store_result", ({ key: k, data, path }) => {
+        localStorage.setItem(k, JSON.stringify(data))
+        window.location = path
+      })
+    } else {
+      // Form field mode: populate inputs on mount, save on every change
+      if (saved) {
+        const data = JSON.parse(saved) as Record<string, string>
+        Object.entries(data).forEach(([name, value]) => {
+          const input = this.el.querySelector(`[name="${name}"]`) as HTMLInputElement | null
+          if (input) input.value = value
+        })
+      }
+
+      this.el.addEventListener("input", () => {
+        const data: Record<string, string> = {}
+        Array.from((this.el as HTMLElement).querySelectorAll("input[name], select[name], textarea[name]")).forEach((el) => {
+          const input = el as HTMLInputElement
+          data[input.name] = input.value
+        })
+        localStorage.setItem(key, JSON.stringify(data))
+      })
     }
+  }
+}
 
-    this.handleEvent("store_result", ({ key, data, path }) => {
-      localStorage.setItem(key, JSON.stringify(data))
-      window.location = path
+const PhoneInputHook = {
+  mounted() {
+    this.el.addEventListener("input", (e: Event) => {
+      const input = e.target as HTMLInputElement
+      const digits = input.value.replace(/\D/g, "").slice(0, 10)
+      let formatted = digits
+      if (digits.length > 6) {
+        formatted = digits.slice(0, 3) + "-" + digits.slice(3, 6) + "-" + digits.slice(6)
+      } else if (digits.length > 3) {
+        formatted = digits.slice(0, 3) + "-" + digits.slice(3)
+      }
+      input.value = formatted
     })
   }
 }
 
-const hooks: Record<string, object> = { DragNDropHook, LocalStorageHook, DownloadHook }
+const hooks = { DragNDropHook, LocalStorageHook, DownloadHook, PhoneInputHook }
 
 export default hooks
