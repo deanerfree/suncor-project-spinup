@@ -36,7 +36,7 @@ def populate_eow_report(data, output_dir):
     return out_path
 
 def populate_am_report(data, output_dir):
-    wb = openpyxl.load_workbook(os.path.join(TEMPLATE_DIR, 'TEMPLATE_AM Report.xlsx'))
+    wb = openpyxl.load_workbook(os.path.join(TEMPLATE_DIR, 'TEMPLATE2_AM Report.xlsx'))
     ws = wb.active
 
     mcmurray_top = 0
