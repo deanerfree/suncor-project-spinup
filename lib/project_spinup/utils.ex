@@ -37,8 +37,6 @@ defmodule ProjectSpinup.Utils do
         {:error, "File is not a PDF"}
 
       true ->
-        # TODO: Implement PDF processing logic
-        Logger.info("Processing PDF file: #{file_path} for client: #{client_name}")
         {:ok, text} = parse_pdf(file_path)
         Logger.info(text)
         {:ok, %{file_path: file_path, client_name: client_name, processed_at: DateTime.utc_now()}}
