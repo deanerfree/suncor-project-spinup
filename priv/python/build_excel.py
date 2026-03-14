@@ -7,6 +7,7 @@ import json
 import os
 import sys
 
+from copy import copy
 from datetime import datetime
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -41,6 +42,23 @@ def populate_am_report(data, output_dir):
 
     mcmurray_top = 0
     total_depth = 0
+    last_entry_row = 0
+    formations_info_length = len(data['sections']['Geological Formation Information']['rows'])
+
+    # Write geological formation rows starting at row 34
+    row = 34
+    for formation in data['sections']['Geological Formation Information']['rows']:
+        ws[f'A{row}'] = formation.get('formation')
+        ws[f'D{row}'] = formation.get('mkb_tvd')
+        ws[f'E{row}'] = formation.get('mkb_tvd')
+        ws[f'F{row}'] = formation.get('masl_tvd')
+        name = (formation.get('formation') or '').lower()
+        if 'mcmurray' in name and mcmurray_top == 0:
+            mcmurray_top = formation.get('mkb_tvd') or 0
+        if formation.get('mkb_tvd') is not None:
+            total_depth = formation.get('mkb_tvd')
+        last_entry_row = row
+        row += 1
 
     # Build general information
     ws['C8'] = data.get('rig_name', '')
@@ -60,25 +78,38 @@ def populate_am_report(data, output_dir):
     ws['L9'] = data.get('rig_ph', '')
 
     # Build geological formation information
-    for i, item in enumerate(data['sections']['Geological Formation Information']['rows'], start=1):
-        row = 33 + i
-        if mcmurray_top == 0 and 'mcmurray' in item['formation'].lower():
-            mcmurray_top = round(item['mkb_tvd'])
-        if item['formation'].lower() == 'total depth':
-            total_depth = item['mkb_tvd']
-        
-        ws[f'A{row}'] = item['formation']
-        ws[f'D{row}'] = item['mkb_tvd']
-        ws[f'E{row}'] = item['mkb_tvd']
-        ws[f'F{row}'] = item['masl_tvd']
+    if last_entry_row < 52:
+        rows_to_delete = 52 - last_entry_row
 
-    # Build mud resistivity information
-    resistivity_start = mcmurray_top - 20
-    row = 34
-    while resistivity_start <= total_depth:
-        ws[f'L{row}'] = resistivity_start
-        resistivity_start += 50
-        row += 1
+        # Collect and shift merged cell ranges before deleting
+        new_merges = []
+        for merge in ws.merged_cells.ranges:
+            if merge.min_row > last_entry_row:
+                # Below the deletion zone — shift up
+                new_merges.append((
+                    merge.min_row - rows_to_delete,
+                    merge.min_col,
+                    merge.max_row - rows_to_delete,
+                    merge.max_col
+                ))
+            else:
+                # Above or within data — keep as is
+                new_merges.append((
+                    merge.min_row,
+                    merge.min_col,
+                    merge.max_row,
+                    merge.max_col
+                ))
+
+        # Clear all merges, delete the empty rows, re-apply shifted merges
+        ws.merged_cells.ranges.clear()
+        ws.delete_rows(last_entry_row + 1, rows_to_delete)
+
+        for min_row, min_col, max_row, max_col in new_merges:
+            ws.merge_cells(
+                start_row=min_row, start_column=min_col,
+                end_row=max_row, end_column=max_col
+            )
 
     # Resistivity report generation
     out_path = os.path.join(output_dir, data["well_name"] + "_AM Report.xlsx")
