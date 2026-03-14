@@ -53,10 +53,12 @@ def populate_am_report(data, output_dir):
         ws[f'E{row}'] = formation.get('mkb_tvd')
         ws[f'F{row}'] = formation.get('masl_tvd')
         name = (formation.get('formation') or '').lower()
+
         if 'mcmurray' in name and mcmurray_top == 0:
             mcmurray_top = formation.get('mkb_tvd') or 0
         if formation.get('mkb_tvd') is not None:
             total_depth = formation.get('mkb_tvd')
+        
         last_entry_row = row
         row += 1
 
@@ -83,8 +85,15 @@ def populate_am_report(data, output_dir):
 
         # Collect and shift merged cell ranges before deleting
         new_merges = []
+        delete_start = last_entry_row + 1
+        delete_end = last_entry_row + rows_to_delete
+
         for merge in ws.merged_cells.ranges:
-            if merge.min_row > last_entry_row:
+            # Skip any merge that overlaps the rows being deleted
+            if merge.max_row >= delete_start and merge.min_row <= delete_end:
+                continue
+            
+            if merge.min_row > delete_end:
                 # Below the deletion zone — shift up
                 new_merges.append((
                     merge.min_row - rows_to_delete,
@@ -93,7 +102,6 @@ def populate_am_report(data, output_dir):
                     merge.max_col
                 ))
             else:
-                # Above or within data — keep as is
                 new_merges.append((
                     merge.min_row,
                     merge.min_col,
@@ -101,7 +109,6 @@ def populate_am_report(data, output_dir):
                     merge.max_col
                 ))
 
-        # Clear all merges, delete the empty rows, re-apply shifted merges
         ws.merged_cells.ranges.clear()
         ws.delete_rows(last_entry_row + 1, rows_to_delete)
 
@@ -111,7 +118,13 @@ def populate_am_report(data, output_dir):
                 end_row=max_row, end_column=max_col
             )
 
-    # Resistivity report generation
+    # Well Geometry section L12:N12
+    
+
+
+    # Resistivity section
+
+    
     out_path = os.path.join(output_dir, data["well_name"] + "_AM Report.xlsx")
     wb.save(out_path)
     return out_path, mcmurray_top, total_depth
