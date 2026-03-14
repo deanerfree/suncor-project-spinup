@@ -502,18 +502,22 @@ def parse_surface_location(page, anchor):
 
 def parse_casing_design(page, anchor):
     """
-    Parse Casing Design section into structured rows.
+    Parse Casing Design section into column-oriented structure.
 
     The section has a row-label column on the left and 2–3 data columns:
       Surface, (Intermediate — if present), Main
 
+    Extracts three specific rows by position:
+      row 0 → hole_size  (first row: size of hole)
+      row 1 → depth      (second row: depth of hole)
+      row 3 → casing_od  (fourth row: outer diameter)
+
     Returns a dict:
       {
-        "columns": ["Surface", "Intermediate", "Main"],   # or ["Surface", "Main"]
-        "rows": [
-          {"field": "Hole Size (mm)", "surface": "311", "intermediate": "222", "main": "159"},
-          ...
-        ]
+        "columns": ["surface", "intermediate", "main"],   # or ["surface", "main"]
+        "surface":      {"hole_size": "311", "depth": "200", "casing_od": "219"},
+        "intermediate": {"hole_size": "222", "depth": "150", "casing_od": "168"},
+        "main":         {"hole_size": "159", "depth": "500", "casing_od": "127"}
       }
     """
     region = page.crop((anchor.x_lo, anchor.y_top, anchor.x_hi, anchor.y_bot - 0.5))
@@ -589,7 +593,13 @@ def parse_casing_design(page, anchor):
         return " ".join(buckets.get(col, [])).strip()
 
     # ── Parse data rows ───────────────────────────────────────────────────────
-    rows = []
+    # Map row index → field key (0=hole_size, 1=hole_depth, 3=outer_diameter)
+    FIELD_MAP = {0: "hole_size", 1: "depth", 3: "casing_od"}
+
+    col_names = [c for c, _ in col_list]
+    col_data  = {c: {} for c in col_names}
+
+    row_idx = 0
     for top, lw in sorted_lines:
         if top <= header_top + 1:
             continue
@@ -600,19 +610,20 @@ def parse_casing_design(page, anchor):
         if not field:
             continue
 
-        buckets = {c: [] for c, _ in col_list}
-        for w in data_words:
-            buckets[nearest_col(w["x0"])].append(w["text"])
+        if row_idx in FIELD_MAP:
+            key = FIELD_MAP[row_idx]
+            buckets = {c: [] for c in col_names}
+            for w in data_words:
+                buckets[nearest_col(w["x0"])].append(w["text"])
+            for c in col_names:
+                col_data[c][key] = bucket_text(buckets, c)
 
-        row = {"field": field}
-        for col, _ in col_list:
-            row[col] = bucket_text(buckets, col)
-        rows.append(row)
+        row_idx += 1
 
-    return {
-        "columns": [c for c, _ in col_list],
-        "rows": rows,
-    }
+    result = {"columns": col_names}
+    for c in col_names:
+        result[c] = col_data[c]
+    return result
 
 
 def parse_drilling_fluids(page, anchor):
@@ -741,7 +752,15 @@ def parse_drilling_fluids(page, anchor):
             if extra:
                 current["comments"] = (current["comments"] + " " + extra).strip()
 
-    return records
+    # Organise by hole section key
+    section_keys = []
+    result = {}
+    for rec in records:
+        key = rec["hole_section"].lower().replace(" ", "_")
+        section_keys.append(key)
+        result[key] = {k: v for k, v in rec.items() if k != "hole_section"}
+    result["sections"] = section_keys
+    return result
 
 
 def parse_logging_information(page, anchor):
@@ -912,7 +931,7 @@ def extract_page(page, requested_sections):
         elif name == "Drilling Fluids":
             sections[name] = {
                 "raw_text": extract_section_text(page, anchor),
-                "rows": parse_drilling_fluids(page, anchor),
+                "fluids": parse_drilling_fluids(page, anchor),
             }
         elif name == "Casing Design":
             sections[name] = {
@@ -926,6 +945,22 @@ def extract_page(page, requested_sections):
             }
         else:
             sections[name] = {"raw_text": extract_section_text(page, anchor)}
+
+    # ── Enrich casing design with system_type from drilling fluids ───────────
+    casing_section = sections.get("Casing Design")
+    fluids_section = sections.get("Drilling Fluids")
+    if casing_section and fluids_section:
+        casing_data = casing_section.get("casing")
+        fluids_data = fluids_section.get("fluids")
+        if casing_data and fluids_data:
+            fluid_keys = fluids_data.get("sections", [])
+            for col in casing_data.get("columns", []):
+                system_type = ""
+                for fluid_key in fluid_keys:
+                    if fluid_key.startswith(col) or col in fluid_key:
+                        system_type = fluids_data[fluid_key].get("system_type", "")
+                        break
+                casing_data[col]["system_type"] = system_type
 
     return {
         "page":      page.page_number,

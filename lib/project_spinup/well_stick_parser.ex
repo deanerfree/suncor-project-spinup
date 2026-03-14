@@ -200,6 +200,13 @@ defmodule ProjectSpinup.WellStickParser do
       end
 
     base =
+      if fluids = raw["fluids"] do
+        Map.put(base, :fluids, cast_fluids(fluids))
+      else
+        base
+      end
+
+    base =
       if casing = raw["casing"] do
         Map.put(base, :casing, cast_casing(casing))
       else
@@ -232,18 +239,51 @@ defmodule ProjectSpinup.WellStickParser do
   end
 
   defp cast_casing(raw) do
-    %{
-      columns: raw["columns"] || [],
-      rows:
-        Enum.map(raw["rows"] || [], fn r ->
-          %{
-            field: r["field"] || "",
-            surface: r["surface"] || "",
-            intermediate: r["intermediate"] || "",
-            main: r["main"] || ""
-          }
-        end)
+    cols = raw["columns"] || []
+
+    cast_section = fn key ->
+      s = raw[key] || %{}
+      %{
+        hole_size: s["hole_size"] || "",
+        depth: s["depth"] || "",
+        casing_od: s["casing_od"] || "",
+        system_type: s["system_type"] || ""
+      }
+    end
+
+    base = %{
+      columns: cols,
+      surface: cast_section.("surface"),
+      main: cast_section.("main")
     }
+
+    if "intermediate" in cols do
+      Map.put(base, :intermediate, cast_section.("intermediate"))
+    else
+      base
+    end
+  end
+
+  defp cast_fluids(raw) do
+    sec_keys = raw["sections"] || []
+
+    cast_sec = fn key ->
+      s = raw[key] || %{}
+      %{
+        hole_size_mm: s["hole_size_mm"] || "",
+        interval_mkb: s["interval_mkb"] || "",
+        system_type: s["system_type"] || "",
+        density_kg_m3: s["density_kg_m3"] || "",
+        viscosity_s_l: s["viscosity_s_l"] || "",
+        fluid_loss_ml: s["fluid_loss_ml"] || "",
+        ph: s["ph"] || "",
+        comments: s["comments"] || ""
+      }
+    end
+
+    Enum.reduce(sec_keys, %{sections: sec_keys}, fn key, acc ->
+      Map.put(acc, String.to_atom(key), cast_sec.(key))
+    end)
   end
 
   defp cast_rows([]), do: []

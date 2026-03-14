@@ -11,7 +11,7 @@ defmodule ProjectSpinupWeb.ReviewLive do
   end
 
   def handle_event("load_result", %{"data" => data}, socket) do
-    result = atomize_keys(data)
+    result = data |> atomize_keys() |> normalize_result()
     {:noreply, assign(socket, :result, result)}
   end
 
@@ -66,13 +66,56 @@ defmodule ProjectSpinupWeb.ReviewLive do
   defp atomize_keys(list) when is_list(list), do: Enum.map(list, &atomize_keys/1)
   defp atomize_keys(value), do: value
 
+  defp normalize_result(result) when is_list(result) do
+    Enum.map(result, fn page ->
+      sections = Map.new(page.sections, fn {k, v} -> {k, normalize_section(v)} end)
+      %{page | sections: sections}
+    end)
+  end
+
+  defp normalize_result(result), do: result
+
+  defp normalize_section(%{casing: casing} = section) when is_map(casing) do
+    %{section | casing: normalize_casing(casing)}
+  end
+
+  defp normalize_section(section), do: section
+
+  # New format already has :surface key — nothing to do
+  defp normalize_casing(%{surface: _} = casing), do: casing
+
+  # Old format has :rows — extract hole_size(row 0), hole_depth(row 1), outer_diameter(row 3)
+  defp normalize_casing(%{rows: rows, columns: cols}) do
+    field_keys = %{0 => :hole_size, 1 => :hole_depth, 3 => :outer_diameter}
+    col_atoms = Enum.map(cols, &String.to_atom/1)
+
+    col_data =
+      Map.new(col_atoms, fn col ->
+        values =
+          rows
+          |> Enum.with_index()
+          |> Enum.reduce(%{}, fn {row, i}, acc ->
+            case Map.get(field_keys, i) do
+              nil -> acc
+              field_key -> Map.put(acc, field_key, Map.get(row, col, "") || "")
+            end
+          end)
+
+        {col, Map.put_new(values, :system_type, "")}
+      end)
+
+    Map.put(col_data, :columns, cols)
+  end
+
+  defp normalize_casing(casing), do: casing
+
   @section_order [
     "Surface Location Information",
     "Geological Formation Information",
     "Drill Cutting / Coring Information",
-    "Drilling Fluids",
     "Drilling Notes",
     "Casing Design",
+    "Drilling Fluids",
     "Logging Information",
     "General Information",
     "Piezometer Design"
@@ -124,6 +167,9 @@ defmodule ProjectSpinupWeb.ReviewLive do
 
       Map.has_key?(section, :rows) and match?([%{formation: _} | _], section.rows) ->
         :geo_formations
+
+      Map.has_key?(section, :fluids) ->
+        :drilling_fluids
 
       Map.has_key?(section, :rows) and match?([%{hole_section: _} | _], section.rows) ->
         :drilling_fluids
@@ -335,16 +381,38 @@ defmodule ProjectSpinupWeb.ReviewLive do
                                 </tr>
                               </thead>
                               <tbody>
-                                <%= for r <- section.casing.rows do %>
-                                  <tr>
-                                    <td class="font-medium">{r.field}</td>
-                                    <td>{r.surface}</td>
-                                    <%= if has_int do %>
-                                      <td>{r.intermediate}</td>
-                                    <% end %>
-                                    <td>{r.main}</td>
-                                  </tr>
-                                <% end %>
+                                <tr>
+                                  <td class="font-medium">Hole Size</td>
+                                  <td>{section.casing.surface.hole_size}</td>
+                                  <%= if has_int do %>
+                                    <td>{section.casing.intermediate.hole_size}</td>
+                                  <% end %>
+                                  <td>{section.casing.main.hole_size}</td>
+                                </tr>
+                                <tr>
+                                  <td class="font-medium">Hole Depth</td>
+                                  <td>{section.casing.surface.depth}</td>
+                                  <%= if has_int do %>
+                                    <td>{section.casing.intermediate.depth}</td>
+                                  <% end %>
+                                  <td>{section.casing.main.depth}</td>
+                                </tr>
+                                <tr>
+                                  <td class="font-medium">Outer Diameter</td>
+                                  <td>{section.casing.surface.casing_od}</td>
+                                  <%= if has_int do %>
+                                    <td>{section.casing.intermediate.casing_od}</td>
+                                  <% end %>
+                                  <td>{section.casing.main.casing_od}</td>
+                                </tr>
+                                <tr>
+                                  <td class="font-medium">System Type</td>
+                                  <td>{section.casing.surface.system_type}</td>
+                                  <%= if has_int do %>
+                                    <td>{section.casing.intermediate.system_type}</td>
+                                  <% end %>
+                                  <td>{section.casing.main.system_type}</td>
+                                </tr>
                               </tbody>
                             </table>
                           </div>
@@ -376,6 +444,20 @@ defmodule ProjectSpinupWeb.ReviewLive do
                             </table>
                           </div>
                         <% :drilling_fluids -> %>
+                          <% fluid_rows =
+                            cond do
+                              Map.has_key?(section, :fluids) ->
+                                Enum.map(section.fluids.sections, fn key ->
+                                  r = Map.get(section.fluids, String.to_atom(key))
+                                  Map.put(r, :hole_section, key)
+                                end)
+
+                              Map.has_key?(section, :rows) ->
+                                section.rows
+
+                              true ->
+                                []
+                            end %>
                           <div class="overflow-x-auto">
                             <table class="table table-xs table-zebra w-full">
                               <thead>
@@ -392,7 +474,7 @@ defmodule ProjectSpinupWeb.ReviewLive do
                                 </tr>
                               </thead>
                               <tbody>
-                                <%= for r <- section.rows do %>
+                                <%= for r <- fluid_rows do %>
                                   <tr>
                                     <td>{r.hole_section}</td>
                                     <td>{r.hole_size_mm}</td>
@@ -433,7 +515,7 @@ defmodule ProjectSpinupWeb.ReviewLive do
                           </div>
                           <%= if cols.notes != "" do %>
                             <p class="text-xs mt-2 text-base-content/60 border-l-2 border-base-300 pl-3 whitespace-pre-wrap">
-                              {cols.notes}
+                              {String.trim(cols.notes)}
                             </p>
                           <% end %>
                         <% :raw -> %>
