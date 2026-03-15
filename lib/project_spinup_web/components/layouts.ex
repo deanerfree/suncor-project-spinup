@@ -114,10 +114,18 @@ defmodule ProjectSpinupWeb.Layouts do
       <div class="max-w-5xl mx-auto px-4 pb-4">
         <ul class="steps w-full text-sm">
           <li class={["step", step_index(@current_step) >= 0 && "step-primary"]}>
-            Upload PDF
+            <%= if @current_step != :upload do %>
+              <.link navigate="/" class="hover:underline cursor-pointer">Upload PDF</.link>
+            <% else %>
+              Upload PDF
+            <% end %>
           </li>
           <li class={["step", step_index(@current_step) >= 1 && "step-primary"]}>
-            Review Data
+            <%= if @current_step != :review && step_index(@current_step) > 1 do %>
+              <.link navigate="/review" class="hover:underline cursor-pointer">Review Data</.link>
+            <% else %>
+              Review Data
+            <% end %>
           </li>
           <li class={["step", step_index(@current_step) >= 2 && "step-primary"]}>
             Download
