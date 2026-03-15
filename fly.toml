@@ -1,19 +1,19 @@
 # fly.toml app configuration file
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 
-app = "project-spinup"
-primary_region = "yyz"
+app = "suncor-project-spinup"
+primary_region = "sjc"
 
 [build]
 
-[deploy]
-  release_command = "/app/bin/migrate"
+# [deploy]
+#  release_command = "/app/bin/migrate"
 
 [env]
-  PHX_HOST = "project-spinup.fly.dev"
+  PHX_HOST = "suncor-project-spinup.fly.dev"
   PORT = "8080"
   PHX_SERVER = "true"
-  ECTO_IPV6 = "true"
+# ECTO_IPV6 = "true"
 
 [http_service]
   internal_port = 8080
