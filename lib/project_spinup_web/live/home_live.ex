@@ -66,7 +66,7 @@ defmodule ProjectSpinupWeb.HomeLive do
         <p class="text-lg text-gray-600 mb-6">
           Your one-stop solution for Suncor core log project management.
         </p>
-        <div id="requirements" class="flex flex-col items-center gap-4">
+        <%!-- <div id="requirements" class="flex flex-col items-center gap-4">
           <h2 class="text-2xl font-semibold">Required Files</h2>
           <div class="flex flex-col items-start gap-2">
             <div class="flex items-center gap-2">
@@ -82,7 +82,7 @@ defmodule ProjectSpinupWeb.HomeLive do
               <label for="surface-descriptions">Surface Descriptions</label>
             </div>
           </div>
-        </div>
+        </div> --%>
 
         <form phx-submit="upload_pdf" phx-change="validate">
           <div
