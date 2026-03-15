@@ -120,10 +120,9 @@ defmodule ProjectSpinupWeb.HomeLive do
                   <span class="font-medium text-lg text-gray-400">{entry.client_name}</span>
                   <button
                     type="button"
-                    class="font-medium text-gray-400 hover:text-gray-700 hover:cursor-pointer"
+                    class="font-medium disabled:cursor-not-allowed text-gray-400 hover:text-gray-700 hover:cursor-pointer"
                     phx-click="cancel_upload"
                     phx-value-ref={entry.ref}
-                    disabled={not @page_loaded}
                   >
                     &times;
                   </button>
@@ -137,16 +136,17 @@ defmodule ProjectSpinupWeb.HomeLive do
             />
             <%= if @uploads.pdf.entries == [] do %>
               <p>Drop in your stick diagram here</p>
-              <label
+              <button
                 for={@uploads.pdf.ref}
                 class={[
-                  "inline-block px-4 py-2 bg-blue-600 text-white rounded transition",
+                  "inline-block px-4 py-2 bg-blue-600 text-white rounded transition disabled:opacity-50 disabled:cursor-not-allowed",
                   Enum.empty?(@uploads.pdf.entries) && "cursor-pointer hover:bg-blue-700",
                   not Enum.empty?(@uploads.pdf.entries) && "opacity-50 cursor-not-allowed"
                 ]}
+                disabled={not @page_loaded}
               >
                 Browse for PDF
-              </label>
+              </button>
             <% end %>
           </div>
           <button
