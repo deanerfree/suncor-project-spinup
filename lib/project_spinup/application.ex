@@ -10,7 +10,6 @@ defmodule ProjectSpinup.Application do
     children = [
       ProjectSpinup.GenServer,
       ProjectSpinupWeb.Telemetry,
-      # ProjectSpinup.Repo,
       {DNSCluster, query: Application.get_env(:project_spinup, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: ProjectSpinup.PubSub},
       # Start to serve requests, typically the last entry
