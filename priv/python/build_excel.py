@@ -119,11 +119,18 @@ def populate_am_report(data, output_dir):
             )
 
     # Well Geometry section L12:N12
-    
 
 
     # Resistivity section
-
+    smpl_depth = 34
+    start = mcmurray_top - 20
+    while start <= total_depth:
+        if start + 50 >= total_depth:
+            ws[f'L{smpl_depth}'] = 'TD'
+        else:
+            ws[f'L{smpl_depth}'] = start
+            start += 50
+            smpl_depth += 1
     
     out_path = os.path.join(output_dir, data["well_name"] + "_AM Report.xlsx")
     wb.save(out_path)
@@ -140,7 +147,10 @@ def populate_resistivity_report(data, output_dir, mcmurray_top, total_depth):
     ws['A4'] = data['uwi']
 
     while start <= total_depth:
-        ws[f'B{row}'] = start
+        if start + 50 > total_depth:
+            ws[f'B{row}'] = 'TD'
+        else:
+            ws[f'B{row}'] = start
         start += 50
         row += 1
 
