@@ -60,8 +60,6 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
-config :project_spinup, ProjectSpinup.WellStickParser,
-        script_path: Path.expand("../priv/python/extract_pdf_data.py", __DIR__)
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

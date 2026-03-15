@@ -16,6 +16,9 @@ import Config
 #
 # Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
 # script that automatically sets the env var above.
+config :project_spinup, ProjectSpinup.WellStickParser,
+  script_path: Application.app_dir(:project_spinup, "priv/python/extract_pdf_data.py")
+
 if System.get_env("PHX_SERVER") do
   config :project_spinup, ProjectSpinupWeb.Endpoint, server: true
 end
