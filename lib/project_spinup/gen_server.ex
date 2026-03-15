@@ -42,7 +42,16 @@ defmodule ProjectSpinup.GenServer do
   @impl true
   def handle_call({:populate_template, request}, _from, state) do
     Logger.info("Received template population request")
-    result = run_build_excel(request)
+
+    result =
+      try do
+        run_build_excel(request)
+      rescue
+        e ->
+          Logger.error("[GenServer] run_build_excel raised: #{Exception.message(e)}\n#{Exception.format_stacktrace(__STACKTRACE__)}")
+          {:error, "Excel generation failed: #{Exception.message(e)}"}
+      end
+
     {:reply, result, state}
   end
 
@@ -80,20 +89,24 @@ defmodule ProjectSpinup.GenServer do
 
       rig_details = page[:rig_details] || %{}
 
-      payload =
-        Jason.encode!(Map.merge(rig_details, %{
-          "well_name" => page[:well_name] || "",
-          "uwi" => page[:uwi] || "",
-          "licence" => page[:licence] || "",
-          "sections" => page[:sections] || %{},
-          "output_dir" => output_dir
-        }))
+      case Jason.encode(Map.merge(rig_details, %{
+        "well_name" => page[:well_name] || "",
+        "uwi" => page[:uwi] || "",
+        "licence" => page[:licence] || "",
+        "sections" => page[:sections] || %{},
+        "output_dir" => output_dir
+      })) do
+        {:error, reason} ->
+          Logger.error("[GenServer] Failed to encode payload: #{inspect(reason)}")
+          {:error, "Failed to encode request data: #{inspect(reason)}"}
 
-      case System.cmd("python3", [script, payload], stderr_to_stdout: false) do
-        {output, 0} -> parse_excel_output(output)
-        {output, code} ->
-          Logger.error("[GenServer] build_excel.py exited #{code}: #{inspect(output)}")
-          {:error, "Excel generation failed (exit #{code}): #{String.trim(output)}"}
+        {:ok, payload} ->
+          case System.cmd("python3", [script, payload], stderr_to_stdout: false) do
+            {output, 0} -> parse_excel_output(output)
+            {output, code} ->
+              Logger.error("[GenServer] build_excel.py exited #{code}: #{inspect(output)}")
+              {:error, "Excel generation failed (exit #{code}): #{String.trim(output)}"}
+          end
       end
     end
   end
