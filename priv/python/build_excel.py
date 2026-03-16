@@ -154,6 +154,19 @@ def populate_resistivity_report(data, output_dir, mcmurray_top, total_depth):
     wb.save(out_path)
     return out_path
 
+def populate_sample_descriptions_report(data, output_dir):
+    wb = openpyxl.load_workbook(os.path.join(TEMPLATE_DIR, 'TEMPLATE_Sample Descriptions.xlsx'))
+    ws = wb.active
+
+    ws['D6'] = data['well_name']
+    ws['C8'] = data['uwi']
+    ws['I6'] = data.get('rig_name', '')
+    ws['I8'] = f"{data.get('geo_day', '')} (Day) / {data.get('geo_night', '')} (Night)"
+
+
+    out_path = os.path.join(output_dir, data["well_name"] + "_Sample Descriptions.xlsx")
+    wb.save(out_path)
+    return out_path
 
 def main():
     mcmurray_top = 0
@@ -167,6 +180,7 @@ def main():
     files.append(am_report)
     resistivity_report = populate_resistivity_report(data, output_dir, mcmurray_top, total_depth)
     files.append(resistivity_report)
+    files.append(populate_sample_descriptions_report(data, output_dir))
 
     print(json.dumps({"status": "ok", "files": files}))
 
