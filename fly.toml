@@ -6,6 +6,8 @@ primary_region = "sjc"
 
 [build]
 
+[deploy]
+  release_command = ""
 
 [env]
   PHX_HOST = "suncor-project-spinup.fly.dev"
