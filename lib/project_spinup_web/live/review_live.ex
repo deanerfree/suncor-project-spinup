@@ -7,12 +7,16 @@ defmodule ProjectSpinupWeb.ReviewLive do
   alias ProjectSpinupWeb.Layouts
 
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, :result, nil)}
+    {:ok, assign(socket, result: nil, loading: true)}
+  end
+
+  def handle_event("load_result", %{"data" => nil}, socket) do
+    {:noreply, assign(socket, loading: false)}
   end
 
   def handle_event("load_result", %{"data" => data}, socket) do
     result = data |> atomize_keys() |> normalize_result()
-    {:noreply, assign(socket, :result, result)}
+    {:noreply, assign(socket, result: result, loading: false)}
   end
 
   def handle_event("generate_excel_files", params, socket) do
@@ -189,7 +193,12 @@ defmodule ProjectSpinupWeb.ReviewLive do
     <Layouts.workflow_header current_step={:review} />
     <div id="well-storage" phx-hook="LocalStorageHook" data-key="well_stick"></div>
     <div class="max-w-5xl mx-auto w-full px-4 pb-8">
-      <%= if @result do %>
+      <%= if @loading do %>
+        <div class="flex justify-center items-center mt-32">
+          <span class="loading loading-dots loading-lg text-primary"></span>
+        </div>
+      <% end %>
+      <%= if not @loading and not is_nil(@result) do %>
         <%= for page <- @result do %>
           <div class="mb-6">
             <h1 class="text-3xl font-bold flex items-center gap-2">
@@ -548,7 +557,8 @@ defmodule ProjectSpinupWeb.ReviewLive do
             </div>
           <% end %>
         </form>
-      <% else %>
+      <% end %>
+      <%= if not @loading and is_nil(@result) do %>
         <div class="card bg-base-200 shadow-sm mt-8">
           <div class="card-body items-center text-center gap-3">
             <.icon name="hero-document-magnifying-glass" class="size-12 text-base-content/30" />

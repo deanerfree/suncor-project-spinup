@@ -49,9 +49,7 @@ const LocalStorageHook = {
     const saved = localStorage.getItem(key)
 
     if (key === "well_stick") {
-      if (saved) {
-        this.pushEvent("load_result", { data: JSON.parse(saved) })
-      }
+      this.pushEvent("load_result", { data: saved ? JSON.parse(saved) : null })
 
       this.handleEvent("store_result", ({ key: k, data, path }) => {
         localStorage.setItem(k, JSON.stringify(data))
