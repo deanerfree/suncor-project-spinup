@@ -221,7 +221,7 @@ defmodule ProjectSpinupWeb.ReviewLive do
               after reviewing the information to download the populated templates.
             </li>
             <li>
-              If you see any issues, make the necessary corrections to the excel file after generating the files.
+              If you see any issues that cannot be edited on this page, make the necessary corrections to the excel file after generating the files.
             </li>
           </ol>
         </div>
