@@ -8,7 +8,7 @@
 import Config
 
 config :project_spinup,
-  ecto_repos: [ProjectSpinup.Repo],
+  ecto_repos: [],
   generators: [timestamp_type: :utc_datetime]
 
 # Configure the endpoint
