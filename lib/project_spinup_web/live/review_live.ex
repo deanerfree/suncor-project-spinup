@@ -207,12 +207,12 @@ defmodule ProjectSpinupWeb.ReviewLive do
           <p class="text-base-content/70 mb-2">Review the data extracted from the uploaded PDF.</p>
           <ol class="list-decimal list-inside text-sm text-base-content/60 space-y-1">
             <li>
-              If you see any issues, make the necessary corrections before generating the files.
-            </li>
-            <li>
               Once satisfied, click
               <span class="font-semibold text-base-content">Generate Excel Files</span>
-              to download the populated templates.
+              after reviewing the information to download the populated templates.
+            </li>
+            <li>
+              If you see any issues, make the necessary corrections to the excel file after generating the files.
             </li>
           </ol>
         </div>
