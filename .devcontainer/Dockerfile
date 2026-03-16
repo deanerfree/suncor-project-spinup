@@ -1,4 +1,4 @@
-FROM elixir:1.18.4-erlang-28.1-debian-trixie-20260223-slim
+FROM elixir:1.16-otp-26
 
 RUN mix local.hex --force && mix local.rebar --force
 
