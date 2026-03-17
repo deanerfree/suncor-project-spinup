@@ -861,12 +861,12 @@ def extract_well_metadata(words):
             meta["licence"] = words[i + 1]["text"]
 
     # ── well_name and UWI from the centred title at the top of the page ───────
-    # The title spans x=[230, 350] (approx centre of page) and top < 55pt.
+    # The title spans x=[230, 380] (approx centre of page) and top < 90pt.
     # Line 1 starts with "SUNCOR": collect all words on that line.
     # Line 2 contains the UWI token.
     lines = {}
     for w in words:
-        if w["top"] < 55 and 200 < w["x0"] < 380:
+        if w["top"] < 90 and 200 < w["x0"] < 380:
             key = round(w["top"], 0)
             lines.setdefault(key, []).append(w)
 
