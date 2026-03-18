@@ -643,8 +643,6 @@ def parse_drilling_fluids(page, anchor):
     sorted_lines = sorted(lines.items())
 
     # ── Find the header row that contains "(mm)" and "(mKB)" ─────────────────
-    # The header may span 2-3 PDF lines; collect header words from all lines
-    # within 10pt of the "(mm)/(mKB)" line to build column centre x-positions.
     header2_top = None
     for top, lw in sorted_lines:
         texts = [w["text"] for w in lw]
