@@ -3,6 +3,7 @@
 Script to convert the stick diagram PDF into an Excel file with the same data.
 """
 import openpyxl
+from openpyxl.worksheet.datavalidation import DataValidation
 import json
 import os
 import sys
@@ -61,6 +62,12 @@ def populate_am_report(data, output_dir):
         
         last_entry_row = row
         row += 1
+    
+    dv = DataValidation(type="list", formula1=f"$A$34:$A${last_entry_row}", allow_blank=True, showDropDown=False)
+
+    ws.add_data_validation(dv)
+    dv.add("G15:G16")
+
 
     # Build general information
     ws['C8'] = data.get('rig_name', '')
